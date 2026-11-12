@@ -1,0 +1,47 @@
+name: "Task"
+description: Work item for an agent or a human (body may be Japanese)
+labels: ["status:needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Title: `<type>(<scope>): <subject>` (English). Rules: `agent-config/rules/issue-hygiene.md`.
+  - type: input
+    id: asof
+    attributes:
+      label: as-of
+      description: Commit SHA this issue was written against
+      placeholder: "abc1234"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduce / current behaviour
+      description: One command and its pasted output.
+      render: shell
+      placeholder: uv run keel verify examples/gb200-1su/netlist.yaml
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective (目的)
+    validations:
+      required: true
+  - type: textarea
+    id: red-green
+    attributes:
+      label: Red before → green after
+      description: One test or command that fails before the change and passes after.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope (In / Out)
+  - type: textarea
+    id: must-not-break
+    attributes:
+      label: Must not break
+      description: Deliberate behaviour this touches (e.g. UNRUN semantics, provenance rule).

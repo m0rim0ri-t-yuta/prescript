@@ -1,0 +1,21 @@
+- {name: "priority:P0", color: "b60205", description: "Broken main or a wrong PASS"}
+- {name: "priority:P1", color: "d93f0b", description: "This week"}
+- {name: "priority:P2", color: "fbca04", description: "This milestone"}
+- {name: "priority:P3", color: "c2e0c6", description: "Backlog"}
+- {name: "area:ir", color: "1d76db", description: "src/keel/ir.py"}
+- {name: "area:loader", color: "1d76db", description: "Netlist parsing and elaboration"}
+- {name: "area:modes", color: "1d76db", description: "Mode resolution and energization"}
+- {name: "area:checks", color: "1d76db", description: "Assertion routines"}
+- {name: "area:report", color: "1d76db", description: "Text / Markdown / JSON output"}
+- {name: "area:cli", color: "1d76db", description: "keel command"}
+- {name: "area:render", color: "1d76db", description: "Diagrams and tables"}
+- {name: "area:examples", color: "1d76db", description: "Reference designs"}
+- {name: "area:ci", color: "1d76db", description: "GitHub Actions"}
+- {name: "area:docs", color: "1d76db", description: "docs/"}
+- {name: "area:agents", color: "1d76db", description: "AGENTS.md, agent-config, skills"}
+- {name: "status:needs-triage", color: "ededed", description: "Metadata not yet applied"}
+- {name: "status:blocked", color: "000000", description: "Waiting on something outside the repo"}
+- {name: "status:deferred", color: "cccccc", description: "Parked on purpose"}
+- {name: "duplicate", color: "cfd3d7", description: "Duplicate of another issue"}
+- {name: "wontfix", color: "ffffff", description: "Will not be worked on"}
+- {name: "good first issue", color: "7057ff", description: "Small, well-scoped, test given"}

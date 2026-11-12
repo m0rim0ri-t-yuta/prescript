@@ -1,0 +1,42 @@
+name: keel-verify
+
+# Dogfoods the product: any PR that changes a design gets the verification report as a comment.
+on:
+  pull_request:
+    paths:
+      - 'examples/**'
+      - 'src/keel/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: keel-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --locked
+      - name: verify
+        id: verify
+        run: |
+          set +e
+          uv run keel verify -f md examples/gb200-1su/netlist.yaml > report.md
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+      - name: comment
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: keel-verify
+          path: report.md
+      - name: fail on FAIL
+        if: steps.verify.outputs.exit != '0'
+        run: exit 1

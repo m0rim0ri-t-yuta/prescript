@@ -1,0 +1,174 @@
+# Keel netlist — GB200 NVL72, 1 Scalable Unit (8 racks), Tier III, 2N electrical
+# Derived from public sources only (NVIDIA RA RA11338001, Uptime Tier III definitions, OCP);
+# every other value is marked `assumed`. Spec workbook: docs/ROADMAP.md -> Reference design.
+# Grammar (v0.1):
+#   nodes:   every bus, source, converter, switchgear, feeder and load is a node with a `kind`
+#   edges:   directed from supply side to load side; a `via` names the breaker/switch on that edge
+#   ratings: kW / kVA / A / kA as the spec gives them; a missing rating is `null`, never a guess
+#   state:   closed|open for switches, on|off|bypass|battery for converters; `modes` override these
+#   provenance: every rating carries where it came from (spec cell or "assumed")
+#   Rule: the verifier never passes a check that touched a `null` rating; it reports UNRUN.
+
+keel: 0.1
+project: GB200-1SU-POC
+units: {power: kW, apparent: kVA, voltage: kV, current: A, fault: kA, time: s}
+
+# ---------------------------------------------------------------- blocks ----
+# Parameterised standard blocks. Instances below are expanded from these.
+blocks:
+  rack_gb200_nvl72:
+    description: "GB200 NVL72 rack, dual-fed (A/B rack PDUs), 8 power shelves x 6 PSU 5.5kW, N redundancy"
+    params: {rated_kw: 150, pdu_rating_a: 200, pdu_voltage_kv: 0.415}
+    provenance: "NVIDIA RA RA11338001: 1.2MW/8 racks; shelf/PSU config. PDU rating assumed (S-06)."
+    expands_to:
+      - {id: "PDU-A-{n}", kind: rack_pdu, rating_a: "{pdu_rating_a}", voltage_kv: "{pdu_voltage_kv}", side: A}
+      - {id: "PDU-B-{n}", kind: rack_pdu, rating_a: "{pdu_rating_a}", voltage_kv: "{pdu_voltage_kv}", side: B}
+      - {id: "RACK-{n}", kind: load, class: critical, rated_kw: "{rated_kw}", dual_fed: true}
+    edges:
+      - {from: "DP-A", to: "PDU-A-{n}", via: {id: "CB-DPA-{n}", kind: breaker, rating_a: 250, break_ka: null}}
+      - {from: "DP-B", to: "PDU-B-{n}", via: {id: "CB-DPB-{n}", kind: breaker, rating_a: 250, break_ka: null}}
+      - {from: "PDU-A-{n}", to: "RACK-{n}", share: 0.5}
+      - {from: "PDU-B-{n}", to: "RACK-{n}", share: 0.5}
+
+  ups_block:
+    description: "Static double-conversion UPS with internal static bypass and battery"
+    params: {rating_kva: 1500, battery_min: 10, pf: 0.95}
+    provenance: "S-05 (assumed)"
+    expands_to:
+      - {id: "UPS-{s}", kind: ups, rating_kva: "{rating_kva}", battery_min: "{battery_min}", pf: "{pf}", state: on}
+      - {id: "UPSOUT-{s}", kind: bus, voltage_kv: 0.415}
+    edges:
+      - {from: "LVMSB-{s}", to: "UPS-{s}", via: {id: "CB-UPSIN-{s}", kind: breaker, rating_a: 2500, break_ka: null}, role: rectifier_input}
+      - {from: "LVMSB-{s}", to: "UPS-{s}", via: {id: "SW-BYP-{s}", kind: switch, state: open}, role: bypass_input}
+      - {from: "UPS-{s}", to: "UPSOUT-{s}", via: {id: "CB-UPSOUT-{s}", kind: breaker, rating_a: 2500, break_ka: null}}
+
+# ---------------------------------------------------------------- nodes -----
+nodes:
+  # Utility and transformers (S-02, S-03)
+  - {id: UTIL-A, kind: source, voltage_kv: null, fault_mva: null, provenance: "S-02 voltage undecided"}
+  - {id: UTIL-B, kind: source, voltage_kv: null, fault_mva: null, provenance: "S-02 voltage undecided"}
+  - {id: TR-A, kind: transformer, rating_kva: 2000, z_pct: 6.0, hv_kv: null, lv_kv: 0.415, provenance: "S-03 assumed"}
+  - {id: TR-B, kind: transformer, rating_kva: 2000, z_pct: 6.0, hv_kv: null, lv_kv: 0.415, provenance: "S-03 assumed"}
+
+  # Low-voltage main switchboards and tie (S-04)
+  - {id: LVMSB-A, kind: bus, voltage_kv: 0.415, rating_a: 3200, provenance: "S-04 assumed"}
+  - {id: LVMSB-B, kind: bus, voltage_kv: 0.415, rating_a: 3200, provenance: "S-04 assumed"}
+
+  # UPS blocks (expanded from ups_block, s = A|B)
+  - {use: ups_block, s: A}
+  - {use: ups_block, s: B}
+
+  # Distribution panels downstream of UPS (S-06)
+  - {id: DP-A, kind: panel, voltage_kv: 0.415, rating_a: 2500, provenance: "S-06 assumed"}
+  - {id: DP-B, kind: panel, voltage_kv: 0.415, rating_a: 2500, provenance: "S-06 assumed"}
+
+  # Racks (expanded from rack_gb200_nvl72, n = 01..08)
+  - {use: rack_gb200_nvl72, n: "01"}
+  - {use: rack_gb200_nvl72, n: "02"}
+  - {use: rack_gb200_nvl72, n: "03"}
+  - {use: rack_gb200_nvl72, n: "04"}
+  - {use: rack_gb200_nvl72, n: "05"}
+  - {use: rack_gb200_nvl72, n: "06"}
+  - {use: rack_gb200_nvl72, n: "07"}
+  - {use: rack_gb200_nvl72, n: "08"}
+
+  # Pod auxiliaries (S-12), dual-fed from DP-A/DP-B
+  - {id: AUX-01, kind: load, class: critical, rated_kw: 80, dual_fed: true, provenance: "S-12 OCP example 10kW/rack"}
+
+  # Emergency: generator, ATS, emergency bus, emergency panels (S-10, S-11)
+  - {id: GEN-01, kind: generator, rating_kw: 2000, start_time_s: 60, state: off, provenance: "S-10 assumed"}
+  - {id: ATS-01, kind: ats, sources: [LVMSB-A, GEN-01], preferred: LVMSB-A, provenance: "S-10"}
+  - {id: ATS-02, kind: ats, sources: [LVMSB-B, GEN-01], preferred: LVMSB-B, provenance: "S-10"}
+  - {id: EM-BUS, kind: bus, voltage_kv: 0.415, rating_a: 3200, provenance: "S-10 assumed"}
+  - {id: EDP-A, kind: panel, voltage_kv: 0.415, rating_a: 400, provenance: "S-11 assumed"}
+  - {id: EDP-B, kind: panel, voltage_kv: 0.415, rating_a: 400, provenance: "S-11 assumed"}
+
+  # Essential loads (02_Loads)
+  - {id: CDU-01,  kind: load, class: essential, rated_kw: 30, provenance: "S-11 assumed"}
+  - {id: CDU-02,  kind: load, class: essential, rated_kw: 30, standby_of: CDU-01, provenance: "S-11 assumed"}
+  - {id: PMP-01,  kind: load, class: essential, rated_kw: 15, provenance: "S-11 assumed"}
+  - {id: PMP-02,  kind: load, class: essential, rated_kw: 15, standby_of: PMP-01, provenance: "S-11 assumed"}
+  - {id: CRAH-01, kind: load, class: essential, rated_kw: 20, provenance: "S-11 assumed"}
+  - {id: CRAH-02, kind: load, class: essential, rated_kw: 20, standby_of: CRAH-01, provenance: "S-11 assumed"}
+  - {id: BMS-01,  kind: load, class: essential, rated_kw: 10, provenance: "assumed"}
+
+# ---------------------------------------------------------------- edges -----
+edges:
+  # Utility -> transformer -> LV main switchboard
+  - {from: UTIL-A, to: TR-A, via: {id: CB-HVA, kind: breaker, rating_a: null, break_ka: null}}
+  - {from: UTIL-B, to: TR-B, via: {id: CB-HVB, kind: breaker, rating_a: null, break_ka: null}}
+  - {from: TR-A, to: LVMSB-A, via: {id: ACB-A, kind: breaker, rating_a: 3200, break_ka: 65}}
+  - {from: TR-B, to: LVMSB-B, via: {id: ACB-B, kind: breaker, rating_a: 3200, break_ka: 65}}
+  # Bus tie, normally open (S-04)
+  - {from: LVMSB-A, to: LVMSB-B, via: {id: TIE-AB, kind: breaker, rating_a: 3200, break_ka: 65, state: open}, bidirectional: true}
+  # UPS output -> distribution panels
+  - {from: UPSOUT-A, to: DP-A, via: {id: CB-DPA, kind: breaker, rating_a: 2500, break_ka: null}}
+  - {from: UPSOUT-B, to: DP-B, via: {id: CB-DPB, kind: breaker, rating_a: 2500, break_ka: null}}
+  # Pod auxiliaries, dual-fed
+  - {from: DP-A, to: AUX-01, via: {id: CB-AUXA, kind: breaker, rating_a: 160, break_ka: null}, share: 0.5}
+  - {from: DP-B, to: AUX-01, via: {id: CB-AUXB, kind: breaker, rating_a: 160, break_ka: null}, share: 0.5}
+  # Emergency bus fed via ATS from either LV main board or generator
+  - {from: ATS-01, to: EM-BUS, via: {id: CB-EM-A, kind: breaker, rating_a: 1600, break_ka: null}}
+  - {from: ATS-02, to: EM-BUS, via: {id: CB-EM-B, kind: breaker, rating_a: 1600, break_ka: null, state: open}}
+  - {from: EM-BUS, to: EDP-A, via: {id: CB-EDPA, kind: breaker, rating_a: 400, break_ka: null}}
+  - {from: EM-BUS, to: EDP-B, via: {id: CB-EDPB, kind: breaker, rating_a: 400, break_ka: null}}
+  # Essential loads split across EDP-A / EDP-B (duty on A, standby on B)
+  - {from: EDP-A, to: CDU-01}
+  - {from: EDP-B, to: CDU-02}
+  - {from: EDP-A, to: PMP-01}
+  - {from: EDP-B, to: PMP-02}
+  - {from: EDP-A, to: CRAH-01}
+  - {from: EDP-B, to: CRAH-02}
+  - {from: EDP-A, to: BMS-01}
+
+# ---------------------------------------------------------------- modes -----
+# Each mode overrides node/switch states and applies demand factors from 02_Loads.
+modes:
+  normal:
+    overrides: {}
+    demand: {critical: 1.0, essential_duty: 1.0, essential_standby: 0.0}
+  maint-A:
+    overrides: {TR-A: off, LVMSB-A: off, UPS-A: off, "ATS-01": {select: GEN-01}, CB-EM-A: open, CB-EM-B: closed}
+    demand: {critical: 1.0, essential_duty: 1.0, essential_standby: 1.0}
+    note: "Tier III concurrent maintainability: everything on A isolated; B carries full IT load"
+  maint-B:
+    overrides: {TR-B: off, LVMSB-B: off, UPS-B: off}
+    demand: {critical: 1.0, essential_duty: 1.0, essential_standby: 1.0}
+  ups-bypass-A:
+    overrides: {UPS-A: bypass, SW-BYP-A: closed}
+    demand: {critical: 1.0, essential_duty: 1.0, essential_standby: 0.0}
+  generator:
+    overrides: {UTIL-A: off, UTIL-B: off, GEN-01: on, "ATS-01": {select: GEN-01}, "ATS-02": {select: GEN-01}, UPS-A: battery, UPS-B: battery}
+    demand: {critical: 1.0, essential_duty: 1.0, essential_standby: 1.0}
+    note: "Generator must carry essential loads plus UPS rectifier input once UPS returns from battery"
+  dead-pod:
+    overrides: {UTIL-A: off, UTIL-B: off, GEN-01: off, UPS-A: battery, UPS-B: battery, EM-BUS: off}
+    demand: {critical: 0.1, essential_duty: 0.0, essential_standby: 0.0}
+    note: "Cooling lost; how long until GPUs must shut down vs battery minutes"
+  tie-closed:
+    overrides: {TIE-AB: closed}
+    demand: {critical: 1.0, essential_duty: 1.0, essential_standby: 0.0}
+    note: "Max fault current case for breaker duty"
+
+# ------------------------------------------------------------ assertions ----
+# Mirrors 04_Assertions. `check` names a built-in verifier routine.
+assertions:
+  - {id: A-01, check: dual_path,        args: {class: critical, sides: [A, B]},             modes: [normal, ups-bypass-A, generator, dead-pod, tie-closed]}
+  # A-16: Tier III concurrent maintainability takes one side down on purpose, so maintenance modes
+  # require a single live path instead of two. (v0.1 of this file asked for dual_path in `all`
+  # modes; `keel verify` flagged it on the first run.)
+  - {id: A-16, check: path_exists,      args: {class: critical},                           modes: [maint-A, maint-B]}
+  - {id: A-02, check: n_minus_1,        args: {class: critical, sweep: [transformer, bus, ups, panel, rack_pdu, breaker]}, modes: [normal]}
+  - {id: A-03, check: diverse_upstream, args: {class: critical, up_to: transformer},        modes: [normal]}
+  - {id: A-04, check: path_exists,      args: {class: essential, from: EM-BUS},            modes: [generator]}
+  - {id: A-05, check: standby_diverse,  args: {class: essential, level: panel},            modes: [normal]}
+  - {id: A-06, check: loading,          args: {kind: ups, limit: 1.0, basis: kva},          modes: all}
+  - {id: A-07, check: loading,          args: {kind: [transformer, bus, ups, panel, rack_pdu], limit: 1.0}, modes: [maint-A, maint-B]}
+  - {id: A-08, check: generator_margin, args: {gen: GEN-01, include: [essential, ups_input], charge_factor: 1.1}, modes: [generator]}
+  - {id: A-09, check: loading,          args: {kind: rack_pdu, limit: 0.8, basis: amps},    modes: all}
+  - {id: A-10, check: breaker_duty,     args: {method: ieee_simplified},                   modes: [tie-closed]}
+  - {id: A-11, check: time_margin,      args: {battery_of: [UPS-A, UPS-B], must_exceed: {GEN-01: start_time_s}, margin_s: 30}, modes: [generator]}
+  - {id: A-12, check: time_margin,      args: {battery_of: [UPS-A, UPS-B], must_exceed: {gpu_thermal_limit_s: null}}, modes: [dead-pod], severity: warn}
+  - {id: A-13, check: consistency,      args: {against: "02_Loads", fields: [rated_kw]},    modes: [static]}
+  - {id: A-14, check: completeness,     args: {kinds: [transformer, ups, panel, rack_pdu, breaker], fields: [rating]}, modes: [static], severity: warn}
+  - {id: A-15, check: coverage,         args: {modes: all, assertions: [A-01, A-12]},       modes: [meta], severity: warn}
