@@ -4,9 +4,9 @@ paths:
   - 'AGENTS.md'
   - 'agent-config/**'
   - '.agents/skills/**'
-  - 'src/keel/loader.py'
-  - 'src/keel/ir.py'
-  - 'src/keel/checks/**'
+  - 'src/prescript/loader.py'
+  - 'src/prescript/ir.py'
+  - 'src/prescript/checks/**'
 ---
 
 # Documentation Update Discipline
@@ -15,7 +15,7 @@ When code changes documented behaviour, update the docs in the **same PR**.
 
 | Change                              | Update                                   |
 | ----------------------------------- | ---------------------------------------- |
-| Netlist grammar / loader behaviour  | `docs/KEEL-LANGUAGE.md`                  |
+| Netlist grammar / loader behaviour  | `docs/PRESCRIPT-LANGUAGE.md`                  |
 | IR, pipeline stage, module boundary | `docs/ARCHITECTURE.md`                   |
 | New/changed assertion routine       | `docs/CHECKS.md`                         |
 | Tooling, dependency, command        | `docs/DEVELOPMENT.md`                    |

@@ -42,7 +42,7 @@ close.
 ## 6. Promotion bar for follow-up findings
 
 Agents report findings in their final message; the orchestrator decides what becomes an Issue. A
-finding is promoted only when (1) a real user of `keel` can hit it, (2) no existing test or check
+finding is promoted only when (1) a real user of `prescript` can hit it, (2) no existing test or check
 already covers it, and (3) it is worth scheduling on its own. At the second instance of the same
 defect, file the guard, not the instance. Everything else goes in a comment on the originating PR.
 

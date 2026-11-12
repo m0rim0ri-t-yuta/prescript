@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from keel.ir import Design, Node
+from prescript.ir import Design, Node
 
 
 def side_of(node_id: str, sides: list[str]) -> str | None:

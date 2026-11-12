@@ -5,7 +5,7 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
-from keel.cli import app
+from prescript.cli import app
 from tests.conftest import REFERENCE
 
 runner = CliRunner()
@@ -23,7 +23,7 @@ def test_verify_strict_fails_on_unrun() -> None:
 
 def test_verify_markdown_for_pr_comments() -> None:
     res = runner.invoke(app, ["verify", "-f", "md", str(REFERENCE)])
-    assert res.output.startswith("### Keel verify")
+    assert res.output.startswith("### Prescript verify")
 
 
 def test_verify_exits_one_on_fail(tmp_path: Path) -> None:
@@ -40,6 +40,6 @@ def test_verify_exits_one_on_fail(tmp_path: Path) -> None:
 
 def test_netlist_error_exits_two(tmp_path: Path) -> None:
     bad = tmp_path / "bad.yaml"
-    bad.write_text(yaml.safe_dump({"keel": "0.1", "nodes": [{"id": "X"}]}), encoding="utf-8")
+    bad.write_text(yaml.safe_dump({"prescript": "0.1", "nodes": [{"id": "X"}]}), encoding="utf-8")
     res = runner.invoke(app, ["verify", str(bad)])
     assert res.exit_code == 2

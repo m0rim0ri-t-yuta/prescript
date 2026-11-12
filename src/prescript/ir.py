@@ -1,4 +1,4 @@
-"""Keel intermediate representation (IR).
+"""Prescript intermediate representation (IR).
 
 The IR is what every stage after the loader consumes. It is fully elaborated: no blocks, no
 templates, every id unique. Ratings live in `attrs` with the unit in the key name
@@ -86,7 +86,7 @@ class Assertion(_Model):
 
 
 class Design(_Model):
-    keel: str
+    prescript: str
     project: str
     units: dict[str, str] = Field(default_factory=dict)
     nodes: dict[str, Node]

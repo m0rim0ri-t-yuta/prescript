@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from keel.checks._util import node_side, targets
-from keel.ir import Assertion, Design
-from keel.modes import ModeState
-from keel.result import Result, Status, unrun
+from prescript.checks._util import node_side, targets
+from prescript.ir import Assertion, Design
+from prescript.modes import ModeState
+from prescript.result import Result, Status, unrun
 
 
 def dual_path(design: Design, state: ModeState | None, a: Assertion) -> Result:

@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from keel.ir import Design
-from keel.loader import NetlistError, parse_design
+from prescript.ir import Design
+from prescript.loader import NetlistError, parse_design
 
 
 def test_blocks_expand_into_eight_racks(design: Design) -> None:
@@ -61,6 +61,6 @@ def test_override_must_target_a_known_id(doc: dict[str, Any]) -> None:
 
 
 def test_unsupported_grammar_version(doc: dict[str, Any]) -> None:
-    doc["keel"] = 9.9
+    doc["prescript"] = 9.9
     with pytest.raises(NetlistError, match="unsupported grammar"):
         parse_design(doc)

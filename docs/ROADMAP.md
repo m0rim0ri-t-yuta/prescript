@@ -13,10 +13,10 @@ public reference architecture; everything else is marked `assumed` with round nu
 
 | Week | Deliverable                                                                        | Exit criterion                                        |
 | ---- | ---------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| W0   | Repo, agent config, IR, loader, energization, `dual_path`/`path_exists`/`completeness`, CI | `keel verify` runs on the reference; CI green  ✅   |
+| W0   | Repo, agent config, IR, loader, energization, `dual_path`/`path_exists`/`completeness`, CI | `prescript verify` runs on the reference; CI green  ✅   |
 | W1   | `loading` (kVA/A basis) with demand factors; equipment and power-path tables (CSV)  | A-06/A-07/A-09 run in every mode                      |
 | W2   | `n_minus_1`, `diverse_upstream`, `standby_diverse`, `generator_margin`, `time_margin` | coverage ≥ 90%                                       |
-| W3   | Single-line diagram SVG (`keel draw`), `keel diff` between two netlists, `consistency`, simplified `breaker_duty` | coverage 100%    |
+| W3   | Single-line diagram SVG (`prescript draw`), `prescript diff` between two netlists, `consistency`, simplified `breaker_duty` | coverage 100%    |
 | W4   | GitHub Action: verify + diff as a PR comment; README with GIF; 2-minute demo video   | demo PR goes red → fix → green                         |
 
 ## Demo script (W4)

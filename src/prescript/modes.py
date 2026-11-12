@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 
-from keel.ir import Design, Edge, Mode
+from prescript.ir import Design, Edge, Mode
 
 # Node states that stop a node from conducting or being energized.
 _DEAD_STATES = {"off"}

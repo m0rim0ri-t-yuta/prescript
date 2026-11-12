@@ -2,19 +2,19 @@
 
 A routine is a pure function `(design, state, assertion) -> Result`. `state` is None for routines
 that run in the `static` pseudo-mode. `coverage` is not here: it runs over the other results and
-lives in keel.engine.
+lives in prescript.engine.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 
-from keel.checks.completeness import completeness
-from keel.checks.dual_path import dual_path
-from keel.checks.path_exists import path_exists
-from keel.ir import Assertion, Design
-from keel.modes import ModeState
-from keel.result import Result
+from prescript.checks.completeness import completeness
+from prescript.checks.dual_path import dual_path
+from prescript.checks.path_exists import path_exists
+from prescript.ir import Assertion, Design
+from prescript.modes import ModeState
+from prescript.result import Result
 
 Check = Callable[[Design, ModeState | None, Assertion], Result]
 

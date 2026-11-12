@@ -1,8 +1,8 @@
 ---
 paths:
-  - 'src/keel/checks/**'
-  - 'src/keel/modes.py'
-  - 'src/keel/report.py'
+  - 'src/prescript/checks/**'
+  - 'src/prescript/modes.py'
+  - 'src/prescript/report.py'
   - 'tests/**'
 ---
 
@@ -20,6 +20,6 @@ The verifier's credibility is the product. These invariants are tested; do not w
    the offending ones. A `FAIL` without evidence is a bug.
 6. **Simplified methods say so.** A check that uses a simplified method (e.g. a screening estimate)
    names the method in `detail` and is never presented as a study result.
-7. **Exit codes**: `keel verify` exits 1 on any `FAIL`; `--strict` also exits 1 on any `UNRUN`.
-8. **One routine per module** under `src/keel/checks/`, registered in `checks/__init__.py`, with a
+7. **Exit codes**: `prescript verify` exits 1 on any `FAIL`; `--strict` also exits 1 on any `UNRUN`.
+8. **One routine per module** under `src/prescript/checks/`, registered in `checks/__init__.py`, with a
    test that shows at least one `PASS`, one `FAIL` and one `UNRUN` (where `UNRUN` is reachable).

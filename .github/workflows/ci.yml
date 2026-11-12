@@ -33,4 +33,4 @@ jobs:
       - name: agent-config drift
         run: uv run python scripts/sync_agent_config.py --check
       - name: verify reference design
-        run: uv run keel verify examples/gb200-1su/netlist.yaml
+        run: uv run prescript verify examples/gb200-1su/netlist.yaml

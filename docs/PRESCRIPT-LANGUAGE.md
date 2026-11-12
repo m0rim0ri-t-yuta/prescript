@@ -1,11 +1,11 @@
-# Keel Netlist Language — v0.1
+# Prescript Netlist Language — v0.1
 
-SSOT for the netlist format. `src/keel/loader.py` implements it; change both in one PR.
+SSOT for the netlist format. `src/prescript/loader.py` implements it; change both in one PR.
 
 ## File
 
 ```yaml
-keel: 0.1            # grammar version (required)
+prescript: 0.1            # grammar version (required)
 project: <name>
 units: {power: kW, apparent: kVA, voltage: kV, current: A, fault: kA, time: s}
 blocks: {...}

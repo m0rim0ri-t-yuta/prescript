@@ -1,6 +1,6 @@
 # Architecture
 
-> Keel: spec-as-code and verification for physical power systems.
+> Prescript: spec-as-code and verification for physical power systems.
 > Last updated: 2026-11-11 · grammar v0.1 · PoC
 
 ## 1. Why this shape
@@ -8,9 +8,9 @@
 Chip design stopped "finding out at bring-up" decades ago: a design is text (HDL), a compiler
 elaborates it into a netlist, and assertions run against every change in CI. Power-system design for
 data centers still moves as drawings, spreadsheets and late simulation studies, and the cross-checks
-between them are manual. Keel borrows the HDL pipeline, not the HDL syntax.
+between them are manual. Prescript borrows the HDL pipeline, not the HDL syntax.
 
-| HDL concept               | Keel                                                      |
+| HDL concept               | Prescript                                                      |
 | ------------------------- | --------------------------------------------------------- |
 | Module / IP block         | `blocks:` (e.g. `rack_gb200_nvl72`, `ups_block`)          |
 | Elaboration               | `loader` expands blocks, synthesizes ATS legs             |
@@ -18,7 +18,7 @@ between them are manual. Keel borrows the HDL pipeline, not the HDL syntax.
 | Test vectors / scenarios  | `modes:` (normal, maint-A, generator, …)                  |
 | SVA assertions            | `assertions:` routed to `checks/*`                        |
 | Functional coverage       | `coverage` over assertion × mode cells                    |
-| Regression in CI          | `keel verify` on every PR, Markdown report as PR comment  |
+| Regression in CI          | `prescript verify` on every PR, Markdown report as PR comment  |
 
 ## 2. Pipeline
 
@@ -36,14 +36,14 @@ re-runs checks.
 
 | Module                | Responsibility                                                          |
 | --------------------- | ----------------------------------------------------------------------- |
-| `keel/ir.py`          | Frozen IR types. Units in field names. `None` = undecided rating.       |
-| `keel/loader.py`      | YAML 1.2-bool parsing, block elaboration, ATS legs, validation          |
-| `keel/modes.py`       | Resolve overrides → node/device states; BFS energization from live sources |
-| `keel/result.py`      | Closed status set and the invariants a `Result` enforces at construction |
-| `keel/checks/`        | One routine per module; `REGISTRY` + `PLANNED`                          |
-| `keel/engine.py`      | Assertion × mode loop, severity, coverage                               |
-| `keel/report.py`      | Matrix + findings as text, Markdown, JSON                               |
-| `keel/cli.py`         | `keel verify`, `keel elaborate`                                         |
+| `prescript/ir.py`          | Frozen IR types. Units in field names. `None` = undecided rating.       |
+| `prescript/loader.py`      | YAML 1.2-bool parsing, block elaboration, ATS legs, validation          |
+| `prescript/modes.py`       | Resolve overrides → node/device states; BFS energization from live sources |
+| `prescript/result.py`      | Closed status set and the invariants a `Result` enforces at construction |
+| `prescript/checks/`        | One routine per module; `REGISTRY` + `PLANNED`                          |
+| `prescript/engine.py`      | Assertion × mode loop, severity, coverage                               |
+| `prescript/report.py`      | Matrix + findings as text, Markdown, JSON                               |
+| `prescript/cli.py`         | `prescript verify`, `prescript elaborate`                                         |
 
 ## 4. Design decisions
 
@@ -52,7 +52,7 @@ re-runs checks.
    data and a `FAIL` without evidence. (`agent-config/rules/verification-semantics.md`)
 2. **Topology first, physics later.** v0.1 answers "is it connected and energized in this mode?".
    Loading is the next layer; short-circuit duty and dynamics come last and only with a named,
-   defensible method. Industry simulators are export targets, not something Keel re-implements.
+   defensible method. Industry simulators are export targets, not something Prescript re-implements.
 3. **Modes are data.** A scenario is an override map plus demand factors, so adding a failure case is
    a YAML change reviewed like code.
 4. **YAML now, grammar later.** Following Verilog's path: get the semantics right in a plain

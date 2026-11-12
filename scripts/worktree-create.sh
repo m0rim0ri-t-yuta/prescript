@@ -27,7 +27,7 @@ cat > .claude/worktree-context.md <<EOF
 - branch: ${branch}
 - issue: #${id}
 - created-from: $(git rev-parse --short "$base")
-- scope: files needed for #${id} only; ask before touching src/keel/ir.py, pyproject.toml, uv.lock, CI.
+- scope: files needed for #${id} only; ask before touching src/prescript/ir.py, pyproject.toml, uv.lock, CI.
 EOF
 
 echo "Worktree ready: $dir"

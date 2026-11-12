@@ -1,4 +1,4 @@
-# Keel netlist — GB200 NVL72, 1 Scalable Unit (8 racks), Tier III, 2N electrical
+# Prescript netlist — GB200 NVL72, 1 Scalable Unit (8 racks), Tier III, 2N electrical
 # Derived from public sources only (NVIDIA RA RA11338001, Uptime Tier III definitions, OCP);
 # every other value is marked `assumed`. Spec workbook: docs/ROADMAP.md -> Reference design.
 # Grammar (v0.1):
@@ -9,7 +9,7 @@
 #   provenance: every rating carries where it came from (spec cell or "assumed")
 #   Rule: the verifier never passes a check that touched a `null` rating; it reports UNRUN.
 
-keel: 0.1
+prescript: 0.1
 project: GB200-1SU-POC
 units: {power: kW, apparent: kVA, voltage: kV, current: A, fault: kA, time: s}
 
@@ -156,7 +156,7 @@ assertions:
   - {id: A-01, check: dual_path,        args: {class: critical, sides: [A, B]},             modes: [normal, ups-bypass-A, generator, dead-pod, tie-closed]}
   # A-16: Tier III concurrent maintainability takes one side down on purpose, so maintenance modes
   # require a single live path instead of two. (v0.1 of this file asked for dual_path in `all`
-  # modes; `keel verify` flagged it on the first run.)
+  # modes; `prescript verify` flagged it on the first run.)
   - {id: A-16, check: path_exists,      args: {class: critical},                           modes: [maint-A, maint-B]}
   - {id: A-02, check: n_minus_1,        args: {class: critical, sweep: [transformer, bus, ups, panel, rack_pdu, breaker]}, modes: [normal]}
   - {id: A-03, check: diverse_upstream, args: {class: critical, up_to: transformer},        modes: [normal]}

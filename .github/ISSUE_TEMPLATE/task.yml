@@ -20,7 +20,7 @@ body:
       label: Reproduce / current behaviour
       description: One command and its pasted output.
       render: shell
-      placeholder: uv run keel verify examples/gb200-1su/netlist.yaml
+      placeholder: uv run prescript verify examples/gb200-1su/netlist.yaml
     validations:
       required: true
   - type: textarea

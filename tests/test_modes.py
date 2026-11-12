@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from keel.ir import Design
-from keel.modes import resolve
+from prescript.ir import Design
+from prescript.modes import resolve
 
 
 def test_normal_energizes_both_sides(design: Design) -> None:

@@ -1,18 +1,18 @@
-name: keel-verify
+name: prescript-verify
 
 # Dogfoods the product: any PR that changes a design gets the verification report as a comment.
 on:
   pull_request:
     paths:
       - 'examples/**'
-      - 'src/keel/**'
+      - 'src/prescript/**'
 
 permissions:
   contents: read
   pull-requests: write
 
 concurrency:
-  group: keel-verify-${{ github.ref }}
+  group: prescript-verify-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -29,13 +29,13 @@ jobs:
         id: verify
         run: |
           set +e
-          uv run keel verify -f md examples/gb200-1su/netlist.yaml > report.md
+          uv run prescript verify -f md examples/gb200-1su/netlist.yaml > report.md
           echo "exit=$?" >> "$GITHUB_OUTPUT"
       - name: comment
         if: github.event.pull_request.head.repo.full_name == github.repository
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          header: keel-verify
+          header: prescript-verify
           path: report.md
       - name: fail on FAIL
         if: steps.verify.outputs.exit != '0'

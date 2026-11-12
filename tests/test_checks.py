@@ -6,14 +6,14 @@ from typing import Any
 
 import pytest
 
-from keel import engine
-from keel.checks.completeness import completeness
-from keel.checks.dual_path import dual_path
-from keel.checks.path_exists import path_exists
-from keel.ir import Assertion, Design
-from keel.loader import parse_design
-from keel.modes import resolve
-from keel.result import Result, Status
+from prescript import engine
+from prescript.checks.completeness import completeness
+from prescript.checks.dual_path import dual_path
+from prescript.checks.path_exists import path_exists
+from prescript.ir import Assertion, Design
+from prescript.loader import parse_design
+from prescript.modes import resolve
+from prescript.result import Result, Status
 
 
 def _a(check: str, **args: Any) -> Assertion:

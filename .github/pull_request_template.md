@@ -9,7 +9,7 @@ Closes #<!-- issue number -->
 ## Verification
 
 ```
-<!-- paste: uv run keel verify examples/gb200-1su/netlist.yaml | grep -E '^PASS' (summary line), before and after -->
+<!-- paste: uv run prescript verify examples/gb200-1su/netlist.yaml | grep -E '^PASS' (summary line), before and after -->
 ```
 
 ## Checklist

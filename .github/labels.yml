@@ -2,12 +2,12 @@
 - {name: "priority:P1", color: "d93f0b", description: "This week"}
 - {name: "priority:P2", color: "fbca04", description: "This milestone"}
 - {name: "priority:P3", color: "c2e0c6", description: "Backlog"}
-- {name: "area:ir", color: "1d76db", description: "src/keel/ir.py"}
+- {name: "area:ir", color: "1d76db", description: "src/prescript/ir.py"}
 - {name: "area:loader", color: "1d76db", description: "Netlist parsing and elaboration"}
 - {name: "area:modes", color: "1d76db", description: "Mode resolution and energization"}
 - {name: "area:checks", color: "1d76db", description: "Assertion routines"}
 - {name: "area:report", color: "1d76db", description: "Text / Markdown / JSON output"}
-- {name: "area:cli", color: "1d76db", description: "keel command"}
+- {name: "area:cli", color: "1d76db", description: "prescript command"}
 - {name: "area:render", color: "1d76db", description: "Diagrams and tables"}
 - {name: "area:examples", color: "1d76db", description: "Reference designs"}
 - {name: "area:ci", color: "1d76db", description: "GitHub Actions"}

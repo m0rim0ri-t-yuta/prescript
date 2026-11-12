@@ -1,4 +1,4 @@
-"""`keel` command line."""
+"""`prescript` command line."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ from typing import Annotated
 
 import typer
 
-from keel import engine, report
-from keel.loader import NetlistError, load_design
-from keel.result import Status
+from prescript import engine, report
+from prescript.loader import NetlistError, load_design
+from prescript.result import Status
 
 app = typer.Typer(
     no_args_is_help=True, add_completion=False, help="Spec-as-code for power systems."

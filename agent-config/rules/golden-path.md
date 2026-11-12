@@ -6,11 +6,11 @@ Every task follows these steps in order.
    Related issues may share one branch/PR: list every `Closes #<id>` and name the branch after the
    primary issue. Sub-agents report findings instead of filing (`issue-hygiene.md` §6).
 2. **Worktree + Branch**: `./scripts/worktree-create.sh <id> <slug> [type]` creates
-   `../keel-power-worktrees/<type>-<id>-<slug>/` and cuts `<type>/<id>-<slug>` from `main`
+   `../prescript-worktrees/<type>-<id>-<slug>/` and cuts `<type>/<id>-<slug>` from `main`
    (`feature`/`fix`/`chore`/`docs`). It runs `uv sync` and installs the pre-commit and pre-push
    hooks — never hand-bootstrap a worktree, or git silently runs no hooks. Work only inside it.
 3. **Develop**: write code + tests, then run the affected surface, not only the suite — at minimum
-   `uv run keel verify examples/gb200-1su/netlist.yaml` and read the table.
+   `uv run prescript verify examples/gb200-1su/netlist.yaml` and read the table.
 
    > An Issue body is a hypothesis. Run its reproduction command before implementing. No
    > reproduction: comment and stop.

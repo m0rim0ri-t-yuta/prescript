@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 import yaml
 
-from keel.ir import Design
-from keel.loader import _Yaml12BoolLoader, parse_design
+from prescript.ir import Design
+from prescript.loader import _Yaml12BoolLoader, parse_design
 
 REFERENCE = Path(__file__).resolve().parent.parent / "examples" / "gb200-1su" / "netlist.yaml"
 

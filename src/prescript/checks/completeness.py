@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from keel.ir import Assertion, Design
-from keel.modes import ModeState
-from keel.result import Result, Status
+from prescript.ir import Assertion, Design
+from prescript.modes import ModeState
+from prescript.result import Result, Status
 
 
 def _missing(elem_id: str, attrs: dict[str, Any], extra: tuple[str, ...]) -> list[str]:

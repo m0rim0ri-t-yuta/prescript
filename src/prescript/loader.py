@@ -1,6 +1,6 @@
-"""Load a Keel netlist (YAML, grammar v0.1) and elaborate it into the IR.
+"""Load a Prescript netlist (YAML, grammar v0.1) and elaborate it into the IR.
 
-Grammar SSOT: docs/KEEL-LANGUAGE.md. This module implements it; change both together.
+Grammar SSOT: docs/PRESCRIPT-LANGUAGE.md. This module implements it; change both together.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from keel.ir import (
+from prescript.ir import (
     DEVICE_KINDS,
     META_MODE,
     NODE_KINDS,
@@ -39,7 +39,7 @@ class NetlistError(ValueError):
 
 class _Yaml12BoolLoader(yaml.SafeLoader):
     """SafeLoader with YAML 1.2 booleans: only true/false. `on`/`off`/`yes`/`no` stay strings,
-    because `on`/`off` are equipment states in this grammar (docs/KEEL-LANGUAGE.md)."""
+    because `on`/`off` are equipment states in this grammar (docs/PRESCRIPT-LANGUAGE.md)."""
 
 
 _Yaml12BoolLoader.yaml_implicit_resolvers = {
@@ -247,9 +247,9 @@ def load_design(path: str | Path) -> Design:
 def parse_design(doc: dict[str, Any]) -> Design:
     if not isinstance(doc, dict):
         raise NetlistError("netlist must be a mapping")
-    grammar = str(doc.get("keel"))
+    grammar = str(doc.get("prescript"))
     if grammar not in SUPPORTED_GRAMMAR:
-        raise NetlistError(f"unsupported grammar version keel: {grammar}")
+        raise NetlistError(f"unsupported grammar version prescript: {grammar}")
 
     raw_nodes, block_edges = _elaborate(doc.get("nodes") or [], doc.get("blocks") or {})
     nodes: dict[str, Node] = {}
@@ -280,7 +280,7 @@ def parse_design(doc: dict[str, Any]) -> Design:
 
     try:
         design = Design(
-            keel=grammar,
+            prescript=grammar,
             project=str(doc.get("project", "unnamed")),
             units=doc.get("units") or {},
             nodes=nodes,

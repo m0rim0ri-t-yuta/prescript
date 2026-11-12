@@ -14,10 +14,10 @@ For Issue work use `./scripts/worktree-create.sh <id> <slug> [type]` instead —
 
 | Command                                                   | What                                  |
 | --------------------------------------------------------- | ------------------------------------- |
-| `uv run keel verify examples/gb200-1su/netlist.yaml`      | Run all assertions (text)             |
-| `uv run keel verify -f md …` / `-f json`                  | Markdown for PR comments / JSON       |
-| `uv run keel verify --strict …`                           | Also fail on `UNRUN`                  |
-| `uv run keel elaborate …`                                 | Dump the elaborated IR                |
+| `uv run prescript verify examples/gb200-1su/netlist.yaml`      | Run all assertions (text)             |
+| `uv run prescript verify -f md …` / `-f json`                  | Markdown for PR comments / JSON       |
+| `uv run prescript verify --strict …`                           | Also fail on `UNRUN`                  |
+| `uv run prescript elaborate …`                                 | Dump the elaborated IR                |
 | `uv run pytest`                                           | Tests                                 |
 | `uv run ruff check . && uv run ruff format --check .`     | Lint + format                         |
 | `uv run mypy`                                             | Strict type check of `src/`           |
@@ -33,6 +33,6 @@ For Issue work use `./scripts/worktree-create.sh <id> <slug> [type]` instead —
 
 ## CI (`.github/workflows/`)
 
-- `ci.yml` — lint, format, mypy, pytest, agent-config drift, `keel verify` on the reference design.
-- `keel-verify.yml` — on PRs touching `examples/**`: posts the Markdown report as a sticky comment.
+- `ci.yml` — lint, format, mypy, pytest, agent-config drift, `prescript verify` on the reference design.
+- `prescript-verify.yml` — on PRs touching `examples/**`: posts the Markdown report as a sticky comment.
 - `gitleaks.yml` — secret scan.

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from collections import deque
 
-from keel.checks._util import targets
-from keel.ir import Assertion, Design
-from keel.modes import ModeState
-from keel.result import Result, Status, unrun
+from prescript.checks._util import targets
+from prescript.ir import Assertion, Design
+from prescript.modes import ModeState
+from prescript.result import Result, Status, unrun
 
 
 def _reachable_from(design: Design, state: ModeState, start: str) -> set[str]:

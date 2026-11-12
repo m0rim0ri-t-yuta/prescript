@@ -15,7 +15,7 @@ you were called; your job is to build it correctly and prove it.
 ## Scope
 
 - Stay inside the files the brief names. Need something outside them? **Stop and report** — another
-  agent may own it. `src/keel/ir.py`, `pyproject.toml` and `uv.lock` are never yours.
+  agent may own it. `src/prescript/ir.py`, `pyproject.toml` and `uv.lock` are never yours.
 - Work in the worktree and branch you were given. You do not create worktrees, push, open PRs or
   merge.
 
@@ -30,7 +30,7 @@ Run what the brief names; otherwise:
 
 ```bash
 uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest -q
-uv run keel verify examples/gb200-1su/netlist.yaml
+uv run prescript verify examples/gb200-1su/netlist.yaml
 ```
 
 Report the actual output. A partial result reported honestly is useful; a green claim that is not

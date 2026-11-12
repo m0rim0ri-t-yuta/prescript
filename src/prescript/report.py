@@ -6,8 +6,8 @@ import json
 from collections import Counter
 from dataclasses import asdict
 
-from keel.ir import Design
-from keel.result import Result, Status
+from prescript.ir import Design
+from prescript.result import Result, Status
 
 _ICON = {Status.PASS: "✅", Status.FAIL: "❌", Status.WARN: "⚠️", Status.UNRUN: "⏸"}
 
@@ -38,7 +38,12 @@ def to_text(design: Design, results: list[Result], verbose: bool = False) -> str
     def line(cells: list[str]) -> str:
         return "  ".join(str(c).ljust(w) for c, w in zip(cells, widths, strict=False)).rstrip()
 
-    out = [f"keel verify — {design.project}", "", line(header), line(["-" * w for w in widths])]
+    out = [
+        f"prescript verify — {design.project}",
+        "",
+        line(header),
+        line(["-" * w for w in widths]),
+    ]
     out += [line(r) for r in rows]
     out += ["", summary(results), ""]
     # UNRUN cells of one assertion usually share a reason: print them once.
@@ -64,7 +69,7 @@ def to_text(design: Design, results: list[Result], verbose: bool = False) -> str
 
 def to_markdown(design: Design, results: list[Result]) -> str:
     header, rows = matrix(design, results)
-    out = [f"### Keel verify — `{design.project}`", "", f"**{summary(results)}**", ""]
+    out = [f"### Prescript verify — `{design.project}`", "", f"**{summary(results)}**", ""]
     out.append("| " + " | ".join(header) + " |")
     out.append("|" + "---|" * len(header))
     for row in rows:

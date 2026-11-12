@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from keel.checks import PLANNED, REGISTRY
-from keel.ir import META_MODE, STATIC_MODE, Assertion, Design
-from keel.modes import ModeState, resolve
-from keel.result import Result, Status, unrun
+from prescript.checks import PLANNED, REGISTRY
+from prescript.ir import META_MODE, STATIC_MODE, Assertion, Design
+from prescript.modes import ModeState, resolve
+from prescript.result import Result, Status, unrun
 
 
 def _apply_severity(a: Assertion, r: Result) -> Result:
