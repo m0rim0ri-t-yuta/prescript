@@ -43,3 +43,14 @@ def test_netlist_error_exits_two(tmp_path: Path) -> None:
     bad.write_text(yaml.safe_dump({"prescript": "0.1", "nodes": [{"id": "X"}]}), encoding="utf-8")
     res = runner.invoke(app, ["verify", str(bad)])
     assert res.exit_code == 2
+
+
+def test_demo_rack_retrofit_goes_red(tmp_path: Path) -> None:
+    """ROADMAP demo: 150 -> 200 kW racks overload UPS-B in maint-A and the PDUs single-fed."""
+    text = REFERENCE.read_text(encoding="utf-8").replace("rated_kw: 150,", "rated_kw: 200,")
+    retrofit = tmp_path / "netlist.yaml"
+    retrofit.write_text(text, encoding="utf-8")
+    res = runner.invoke(app, ["verify", str(retrofit)])
+    assert res.exit_code == 1
+    assert "A-06@maint-A" in res.output
+    assert "UPS-B 118% > 100%" in res.output

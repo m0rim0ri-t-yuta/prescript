@@ -89,8 +89,8 @@ def test_completeness_unrun_for_unknown_kind(design: Design) -> None:
 
 def test_not_implemented_never_passes(design: Design) -> None:
     results = engine.run(design)
-    a06 = [r for r in results if r.assertion == "A-06"]
-    assert a06 and all(r.status is Status.UNRUN for r in a06)
+    a02 = [r for r in results if r.assertion == "A-02"]
+    assert a02 and all(r.status is Status.UNRUN and r.detail == "not implemented" for r in a02)
 
 
 def test_unknown_check_is_unrun(doc: dict[str, Any]) -> None:
