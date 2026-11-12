@@ -1,5 +1,7 @@
 name: gitleaks
 
+# Runs the gitleaks CLI over the full history. gitleaks-action scans `<first>^..<head>` on push,
+# which cannot resolve when <first> is the root commit (no parent) — see #2.
 on:
   push:
     branches: [main]
@@ -16,11 +18,16 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      GITLEAKS_VERSION: 8.21.2
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: install gitleaks
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar xz -C /usr/local/bin gitleaks
+      - name: scan full history
+        run: gitleaks git . --no-banner --redact --exit-code 1

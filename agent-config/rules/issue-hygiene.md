@@ -23,12 +23,16 @@ title; Japanese body OK.
 
 ## 4. Metadata at creation time
 
-Exactly one `priority:` label, at least one `area:` label, and an Issue Type
-(Bug | Feature | Task | Epic). Replace the template's `status:needs-triage`:
+Exactly one `priority:` label and at least one `area:` label. Replace the template's
+`status:needs-triage`:
 
 ```bash
-gh issue edit <n> --add-label "priority:P2,area:checks" --remove-label "status:needs-triage" --type Feature
+gh issue edit <n> --add-label "priority:P2,area:checks" --remove-label "status:needs-triage"
 ```
+
+GitHub Issue Types exist only for organization-owned repositories; this repository is personal, so
+the title's `<type>` carries the kind of work. Epics are tracked with sub-issues
+(`docs/ISSUE_MANAGEMENT.md`).
 
 Labels come from `.github/labels.yml` (synced by `scripts/sync_labels.sh`). Do not invent names.
 
