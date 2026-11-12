@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-# Python ≥ 3.12 and uv (https://docs.astral.sh/uv/)
+# Python ≥ 3.12, uv (https://docs.astral.sh/uv/) and gitleaks (macOS: brew install gitleaks)
 uv sync
 uv run pre-commit install --hook-type pre-commit --hook-type pre-push
 ```
@@ -26,7 +26,8 @@ For Issue work use `./scripts/worktree-create.sh <id> <slug> [type]` instead —
 
 ## Hooks
 
-- **pre-commit**: ruff, ruff-format, gitleaks, whitespace/YAML checks.
+- **pre-commit**: ruff, ruff-format, gitleaks on staged changes (warns and skips if the binary is
+  missing — the CI `scan` job is the gate), whitespace/YAML checks.
 - **pre-push**: mypy, pytest, agent-config drift check — the same gates as CI.
 - **Claude PreToolUse**: `scripts/agent_hooks/block_unsafe_git.py` denies `--no-verify`, force-push,
   pushing to `main` and `gh pr merge`.
@@ -35,4 +36,4 @@ For Issue work use `./scripts/worktree-create.sh <id> <slug> [type]` instead —
 
 - `ci.yml` — lint, format, mypy, pytest, agent-config drift, `prescript verify` on the reference design.
 - `prescript-verify.yml` — on PRs touching `examples/**`: posts the Markdown report as a sticky comment.
-- `gitleaks.yml` — secret scan.
+- `gitleaks.yml` — full-history secret scan with the gitleaks CLI (job `scan`).

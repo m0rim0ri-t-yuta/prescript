@@ -3,10 +3,11 @@
 Rules: `agent-config/rules/issue-hygiene.md`. Labels: `.github/labels.yml` →
 `./scripts/sync_labels.sh`.
 
-## Issue Types
+## Kind of work
 
-`Bug` (defect) · `Feature` (new capability, e.g. a check routine) · `Task` (chore, docs, refactor,
-research) · `Epic` (a milestone; sub-issues hold the work).
+The repository is personal, so GitHub Issue Types are unavailable; the title's Conventional-Commits
+`<type>` (`feat`, `fix`, `chore`, `docs`, …) carries the kind of work. A milestone is an issue titled
+`epic: <milestone>` whose sub-issues hold the work.
 
 ## Labels
 
