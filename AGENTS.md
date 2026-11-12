@@ -63,7 +63,7 @@ Non-obvious constraints only — everything else is discoverable from the repo
 
 ## Agent Context
 
-- **GitHub Repository**: `OWNER/prescript` (rename in this line if the repo moves)
+- **GitHub Repository**: `m0rim0ri-t-yuta/prescript`
 - **Review policy**: agents open PRs; the owner reviews and merges (`review-governance.md`).
 - **Issue conventions**: SSOT `issue-hygiene.md`; label taxonomy `docs/ISSUE_MANAGEMENT.md`.
 - **Language Policy**:
