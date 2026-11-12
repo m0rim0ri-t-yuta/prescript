@@ -26,7 +26,9 @@ between them are manual. Prescript borrows the HDL pipeline, not the HDL syntax.
 netlist.yaml ──▶ loader ──▶ ir.Design ──▶ modes.resolve(mode) ──▶ checks.* ──▶ report
    (text)       parse +       frozen        per-mode states +       pure         text / md / json
                elaborate +   pydantic       energized node set    functions
-               validate
+               validate                            │                    ▲
+                                                   └──▶ flow.compute ───┘
+                                                        per-mode kW on nodes/edges
 ```
 
 Each stage consumes only the previous stage's output. Checks never read YAML; the report never
@@ -39,6 +41,7 @@ re-runs checks.
 | `prescript/ir.py`          | Frozen IR types. Units in field names. `None` = undecided rating.       |
 | `prescript/loader.py`      | YAML 1.2-bool parsing, block elaboration, ATS legs, validation          |
 | `prescript/modes.py`       | Resolve overrides → node/device states; BFS energization from live sources |
+| `prescript/flow.py`        | Lossless radial flow: demand × class factor pushed up live feeds         |
 | `prescript/result.py`      | Closed status set and the invariants a `Result` enforces at construction |
 | `prescript/checks/`        | One routine per module; `REGISTRY` + `PLANNED`                          |
 | `prescript/engine.py`      | Assertion × mode loop, severity, coverage                               |
@@ -51,7 +54,7 @@ re-runs checks.
    ratings and unimplemented routines are `UNRUN`; `Result` refuses a `PASS` that carries missing
    data and a `FAIL` without evidence. (`agent-config/rules/verification-semantics.md`)
 2. **Topology first, physics later.** v0.1 answers "is it connected and energized in this mode?".
-   Loading is the next layer; short-circuit duty and dynamics come last and only with a named,
+   Loading (W1) adds a lossless radial flow on top of the same energization; short-circuit duty and dynamics come last and only with a named,
    defensible method. Industry simulators are export targets, not something Prescript re-implements.
 3. **Modes are data.** A scenario is an override map plus demand factors, so adding a failure case is
    a YAML change reviewed like code.

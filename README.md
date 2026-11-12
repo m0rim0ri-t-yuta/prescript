@@ -21,10 +21,18 @@ uv run prescript verify examples/gb200-1su/netlist.yaml
 id    check             normal  maint-A  maint-B  ups-bypass-A  generator  dead-pod  tie-closed  static  meta
 A-01  dual_path         PASS                      PASS          PASS       PASS      PASS
 A-16  path_exists               PASS     PASS
-A-06  loading           UNRUN   UNRUN    UNRUN    UNRUN         UNRUN      UNRUN     UNRUN
+A-02  n_minus_1         UNRUN
+A-06  loading           PASS    PASS     PASS     PASS          PASS       PASS      PASS
 A-14  completeness                                                                               WARN
 ...
-PASS 8 · FAIL 0 · WARN 2 · UNRUN 24
+PASS 24 · FAIL 0 · WARN 2 · UNRUN 8
+```
+
+Retrofit the racks from 150 kW to 200 kW and the same command goes red:
+
+```
+FAIL   A-06@maint-A: 1 over limit; lossless radial flow, limit 100%
+         - UPS-B 118% > 100% (1768/1500 kVA)
 ```
 
 `UNRUN` is deliberate: a check that touches an undecided (`null`) rating, or that is not built yet,

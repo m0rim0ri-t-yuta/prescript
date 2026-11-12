@@ -11,6 +11,7 @@ from collections.abc import Callable
 
 from prescript.checks.completeness import completeness
 from prescript.checks.dual_path import dual_path
+from prescript.checks.loading import loading
 from prescript.checks.path_exists import path_exists
 from prescript.ir import Assertion, Design
 from prescript.modes import ModeState
@@ -21,6 +22,7 @@ Check = Callable[[Design, ModeState | None, Assertion], Result]
 REGISTRY: dict[str, Check] = {
     "completeness": completeness,
     "dual_path": dual_path,
+    "loading": loading,
     "path_exists": path_exists,
 }
 
@@ -30,7 +32,6 @@ PLANNED: frozenset[str] = frozenset(
         "n_minus_1",
         "diverse_upstream",
         "standby_diverse",
-        "loading",
         "generator_margin",
         "breaker_duty",
         "time_margin",

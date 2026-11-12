@@ -16,7 +16,7 @@ def test_blocks_expand_into_eight_racks(design: Design) -> None:
 
 
 def test_whole_placeholder_keeps_type(design: Design) -> None:
-    assert design.nodes["PDU-A-01"].get("rating_a") == 200
+    assert design.nodes["PDU-A-01"].get("rating_a") == 300
     assert design.nodes["UPS-A"].get("rating_kva") == 1500
 
 

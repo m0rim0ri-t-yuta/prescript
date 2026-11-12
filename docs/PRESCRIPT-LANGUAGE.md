@@ -66,7 +66,9 @@ modes:
 ```
 
 Override targets must exist. `{select: X}` applies only to an `ats`, and `X` must be one of its
-sources. `demand` is carried for the loading checks (not used in v0.1 routines).
+sources. `demand` maps a load's class to a factor on its `rated_kw`: `critical`, `essential_duty`
+(essential loads without `standby_of`) and `essential_standby` (essential loads with `standby_of`).
+A key the mode omits makes `loading` return `UNRUN` — it is never assumed to be 0 or 1.
 
 ## Assertions
 

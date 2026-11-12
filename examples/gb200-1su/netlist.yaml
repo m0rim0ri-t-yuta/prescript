@@ -18,15 +18,18 @@ units: {power: kW, apparent: kVA, voltage: kV, current: A, fault: kA, time: s}
 blocks:
   rack_gb200_nvl72:
     description: "GB200 NVL72 rack, dual-fed (A/B rack PDUs), 8 power shelves x 6 PSU 5.5kW, N redundancy"
-    params: {rated_kw: 150, pdu_rating_a: 200, pdu_voltage_kv: 0.415}
+    # pdu_rating_a: 2N means one PDU must carry the whole rack when the other side is down
+    # (maint-A/B). 150 kW at 415 V, pf 0.95 is ~220 A, so the earlier assumed 200 A failed A-07/A-09
+    # on the first `prescript verify` with the loading check; 300 A keeps single-fed load under 80%.
+    params: {rated_kw: 150, pdu_rating_a: 300, pdu_voltage_kv: 0.415}
     provenance: "NVIDIA RA RA11338001: 1.2MW/8 racks; shelf/PSU config. PDU rating assumed (S-06)."
     expands_to:
       - {id: "PDU-A-{n}", kind: rack_pdu, rating_a: "{pdu_rating_a}", voltage_kv: "{pdu_voltage_kv}", side: A}
       - {id: "PDU-B-{n}", kind: rack_pdu, rating_a: "{pdu_rating_a}", voltage_kv: "{pdu_voltage_kv}", side: B}
       - {id: "RACK-{n}", kind: load, class: critical, rated_kw: "{rated_kw}", dual_fed: true}
     edges:
-      - {from: "DP-A", to: "PDU-A-{n}", via: {id: "CB-DPA-{n}", kind: breaker, rating_a: 250, break_ka: null}}
-      - {from: "DP-B", to: "PDU-B-{n}", via: {id: "CB-DPB-{n}", kind: breaker, rating_a: 250, break_ka: null}}
+      - {from: "DP-A", to: "PDU-A-{n}", via: {id: "CB-DPA-{n}", kind: breaker, rating_a: "{pdu_rating_a}", break_ka: null}}
+      - {from: "DP-B", to: "PDU-B-{n}", via: {id: "CB-DPB-{n}", kind: breaker, rating_a: "{pdu_rating_a}", break_ka: null}}
       - {from: "PDU-A-{n}", to: "RACK-{n}", share: 0.5}
       - {from: "PDU-B-{n}", to: "RACK-{n}", share: 0.5}
 
@@ -36,7 +39,7 @@ blocks:
     provenance: "S-05 (assumed)"
     expands_to:
       - {id: "UPS-{s}", kind: ups, rating_kva: "{rating_kva}", battery_min: "{battery_min}", pf: "{pf}", state: on}
-      - {id: "UPSOUT-{s}", kind: bus, voltage_kv: 0.415}
+      - {id: "UPSOUT-{s}", kind: bus, voltage_kv: 0.415, rating_a: 2500}  # assumed: matches CB-UPSOUT
     edges:
       - {from: "LVMSB-{s}", to: "UPS-{s}", via: {id: "CB-UPSIN-{s}", kind: breaker, rating_a: 2500, break_ka: null}, role: rectifier_input}
       - {from: "LVMSB-{s}", to: "UPS-{s}", via: {id: "SW-BYP-{s}", kind: switch, state: open}, role: bypass_input}
@@ -163,9 +166,9 @@ assertions:
   - {id: A-04, check: path_exists,      args: {class: essential, from: EM-BUS},            modes: [generator]}
   - {id: A-05, check: standby_diverse,  args: {class: essential, level: panel},            modes: [normal]}
   - {id: A-06, check: loading,          args: {kind: ups, limit: 1.0, basis: kva},          modes: all}
-  - {id: A-07, check: loading,          args: {kind: [transformer, bus, ups, panel, rack_pdu], limit: 1.0}, modes: [maint-A, maint-B]}
+  - {id: A-07, check: loading,          args: {kind: [transformer, bus, ups, panel, rack_pdu], limit: 1.0, pf: 0.95}, modes: [maint-A, maint-B]}
   - {id: A-08, check: generator_margin, args: {gen: GEN-01, include: [essential, ups_input], charge_factor: 1.1}, modes: [generator]}
-  - {id: A-09, check: loading,          args: {kind: rack_pdu, limit: 0.8, basis: amps},    modes: all}
+  - {id: A-09, check: loading,          args: {kind: rack_pdu, limit: 0.8, basis: amps, pf: 0.95},    modes: all}
   - {id: A-10, check: breaker_duty,     args: {method: ieee_simplified},                   modes: [tie-closed]}
   - {id: A-11, check: time_margin,      args: {battery_of: [UPS-A, UPS-B], must_exceed: {GEN-01: start_time_s}, margin_s: 30}, modes: [generator]}
   - {id: A-12, check: time_margin,      args: {battery_of: [UPS-A, UPS-B], must_exceed: {gpu_thermal_limit_s: null}}, modes: [dead-pod], severity: warn}
