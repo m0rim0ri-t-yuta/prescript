@@ -1,4 +1,4 @@
-"""dual_path: every dual-fed load of a class is energized from each named side."""
+"""dual_path: every dual-fed load of a class is supplied from each named side."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ def dual_path(design: Design, state: ModeState | None, a: Assertion) -> Result:
     mode = state.mode if state else "static"
     if state is None:
         return unrun(a.id, mode, "dual_path needs an operating mode")
-    cls = str(a.args.get("class", "critical"))
+    cls = str(a.args.get("class", "it_liquid"))
     sides = [str(s) for s in a.args.get("sides", ["A", "B"])]
     loads = [n for n in targets(design, cls) if n.get("dual_fed")]
     if not loads:
@@ -39,6 +39,6 @@ def dual_path(design: Design, state: ModeState | None, a: Assertion) -> Result:
         a.id,
         mode,
         Status.PASS,
-        f"{len(loads)} {cls} loads fed from {'+'.join(sides)}",
+        f"{len(loads)} {cls} loads supplied from {'+'.join(sides)}",
         subjects,
     )

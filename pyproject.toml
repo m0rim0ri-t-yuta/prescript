@@ -1,7 +1,7 @@
 [project]
 name = "prescript"
 version = "0.1.0"
-description = "Spec-as-code and verification for data-center power systems, borrowing HDL discipline."
+description = "Spec-as-code and verification for data-center liquid cooling, borrowing HDL discipline."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"

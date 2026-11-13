@@ -13,7 +13,7 @@ from prescript.loader import NetlistError, load_design
 from prescript.result import Status
 
 app = typer.Typer(
-    no_args_is_help=True, add_completion=False, help="Spec-as-code for power systems."
+    no_args_is_help=True, add_completion=False, help="Spec-as-code for liquid cooling."
 )
 
 
@@ -53,7 +53,7 @@ def verify(
 
 @app.command()
 def elaborate(netlist: NetlistArg) -> None:
-    """Print the elaborated IR as JSON (blocks expanded, ATS legs synthesized)."""
+    """Print the elaborated IR as JSON (blocks expanded, every id unique)."""
     try:
         design = load_design(netlist)
     except NetlistError as exc:

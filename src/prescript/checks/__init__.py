@@ -11,7 +11,9 @@ from collections.abc import Callable
 
 from prescript.checks.completeness import completeness
 from prescript.checks.dual_path import dual_path
-from prescript.checks.path_exists import path_exists
+from prescript.checks.inlet_temp import inlet_temp
+from prescript.checks.loading import loading
+from prescript.checks.loop_closed import loop_closed
 from prescript.ir import Assertion, Design
 from prescript.modes import ModeState
 from prescript.result import Result
@@ -21,19 +23,20 @@ Check = Callable[[Design, ModeState | None, Assertion], Result]
 REGISTRY: dict[str, Check] = {
     "completeness": completeness,
     "dual_path": dual_path,
-    "path_exists": path_exists,
+    "inlet_temp": inlet_temp,
+    "loading": loading,
+    "loop_closed": loop_closed,
 }
 
 # Named in the reference design but not built yet. They return UNRUN, never PASS.
 PLANNED: frozenset[str] = frozenset(
     {
         "n_minus_1",
-        "diverse_upstream",
-        "standby_diverse",
-        "loading",
-        "generator_margin",
-        "breaker_duty",
-        "time_margin",
+        "pressure_drop",
+        "balance",
+        "ride_through",
+        "return_temp",
+        "leak_isolation",
         "consistency",
     }
 )

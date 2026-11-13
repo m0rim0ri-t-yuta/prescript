@@ -1,6 +1,6 @@
 ---
 name: sonnet-explorer
-description: Read-only exploration on Sonnet. Use when the answer requires sweeping many files or external references and only the conclusion is needed — "where is X handled", "trace this mode through elaboration", "which checks read rating_a", or summarising a public reference design or standard into candidate netlist values with sources.
+description: Read-only exploration on Sonnet. Use when the answer requires sweeping many files or external references and only the conclusion is needed — "where is X handled", "trace this mode through elaboration", "which checks read rating_lpm", or summarising a public reference design or standard into candidate netlist values with sources.
 model: sonnet
 effort: medium
 maxTurns: 30

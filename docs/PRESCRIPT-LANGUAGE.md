@@ -1,13 +1,14 @@
-# Prescript Netlist Language — v0.1
+# Prescript Netlist Language — v0.2
 
 SSOT for the netlist format. `src/prescript/loader.py` implements it; change both in one PR.
 
 ## File
 
 ```yaml
-prescript: 0.1            # grammar version (required)
+prescript: 0.2            # grammar version (required)
 project: <name>
-units: {power: kW, apparent: kVA, voltage: kV, current: A, fault: kA, time: s}
+units: {heat: kW, flow: L/min, temperature: C, pressure: kPa, length: mm, time: s}
+fluids: {...}
 blocks: {...}
 nodes: [...]
 edges: [...]
@@ -18,39 +19,55 @@ assertions: [...]
 **Booleans are YAML 1.2**: only `true`/`false`. `on`, `off`, `yes`, `no` are plain strings, because
 `on`/`off` are equipment states.
 
+## Fluids
+
+```yaml
+fluids:
+  pg25: {cp_kj_kgk: 3.85, density_kg_l: 1.03, provenance: "assumed: 25% propylene glycol"}
+```
+
+Every flow calculation uses `cp_kj_kgk × density_kg_l` as the `rho · cp` of `Q = V · rho · cp · dT`.
+`provenance` is mandatory; either property may be `null`, which makes the checks that need it
+`UNRUN`. A node names its fluid with `fluid: <name>`; naming an undeclared fluid is an error.
+
 ## Nodes
 
-`{id, kind, state?, provenance?, ...attributes}`. Kinds: `source`, `transformer`, `bus`, `panel`,
-`ups`, `generator`, `ats`, `rack_pdu`, `load`. Kinds `source`, `transformer`, `bus`, `panel`, `ups`,
-`generator`, `load` **must** carry `provenance`.
+`{id, kind, state?, provenance?, ...attributes}`. Kinds: `cdu`, `pump`, `header`, `manifold`,
+`rack`, `rdhx`. **Every** kind must carry `provenance`.
 
-Attribute names carry units: `rating_kva`, `rating_a`, `rating_kw`, `voltage_kv`, `z_pct`,
-`battery_min`, `start_time_s`, `rated_kw`. An undecided value is `null`.
+Attribute names carry units: `rating_kw`, `rating_lpm`, `rating_kpa`, `approach_k`, `heat_kw`,
+`delta_t_k`, `max_inlet_c`, `dn_mm`. An undecided value is `null`.
 
-Loads: `class` (`critical` | `essential`), `dual_fed: true`, `standby_of: <id>`.
-ATS: `sources: [a, b]`, `preferred: a`. The loader creates one synthetic edge per source.
-Rack PDUs: `side: A|B`. Elsewhere the side is read from a whole `-A`/`-B` id segment.
+Loads (`rack`, `rdhx`): `class` (e.g. `it_liquid` | `it_air`), `heat_kw`, `delta_t_k`,
+`max_inlet_c`, `dual_fed: true`.
+CDUs: `rating_kw`, `rating_lpm`, `approach_k`, `side: A|B`.
+Pumps: `rating_lpm`, `rating_kpa`, `standby_of: <id>`. A standby pump declares `state: standby`.
+Manifolds: `rating_lpm`, `side: A|B`. Elsewhere the side is read from a whole `-A`/`-B` id segment.
 
-Default states: `generator` → `off`; everything else → `on`. UPS states: `on`, `bypass`, `battery`,
-`off`.
+Default state is `on`. Equipment states: `on`, `off`, `standby`. `off` and `standby` are dead: they
+block flow.
 
 ## Edges
 
-`{from, to, via?, share?, bidirectional?, role?}` — directed supply → load.
-`via: {id, kind: breaker|switch, state?: closed|open, rating_a?, break_ka?, provenance?}`.
-`role`: `rectifier_input` / `bypass_input` for UPS inputs.
+`{from, to, via?, share?, bidirectional?, role?}` — directed **the way the coolant travels**, so a
+loop is a cycle: `cdu → pump → supply header → manifold → rack → return header → cdu`.
+`via: {id, kind: valve|check_valve, state?: open|closed, kv_m3h?, provenance?}`.
+
+A valve defaults to `open` and conducts while it is open — the opposite of a breaker.
+`share` splits the quantity at a branch; it is used on both the supply and the return legs of a
+dual-fed load.
 
 ## Blocks
 
 ```yaml
 blocks:
-  ups_block:
-    params: {rating_kva: 1500}
+  cdu_loop:
+    params: {rating_lpm: 2300}
     provenance: "..."            # inherited by expanded nodes without their own
-    expands_to: [ {id: "UPS-{s}", kind: ups, rating_kva: "{rating_kva}"} ]
-    edges:      [ {from: "LVMSB-{s}", to: "UPS-{s}"} ]
+    expands_to: [ {id: "CDU-{s}", kind: cdu, rating_lpm: "{rating_lpm}"} ]
+    edges:      [ {from: "CDU-{s}", to: "PMP-{s}-1"} ]
 nodes:
-  - {use: ups_block, s: A}       # instance args override params
+  - {use: cdu_loop, s: A}        # instance args override params
 ```
 
 A string that is exactly `"{param}"` keeps the parameter's type; otherwise it is formatted text.
@@ -59,17 +76,19 @@ A string that is exactly `"{param}"` keeps the parameter's type; otherwise it is
 
 ```yaml
 modes:
-  maint-A:
-    overrides: {TR-A: off, CB-EM-B: closed, ATS-01: {select: GEN-01}}
-    demand: {critical: 1.0, essential_duty: 1.0, essential_standby: 1.0}
+  maint-cdu-A:
+    overrides: {CDU-A: off, V-SA-01: closed}
+    demand: {it_liquid: 1.0, it_air: 1.0}
+    conditions: {facility_supply_c: 20}
     note: "..."
 ```
 
-Override targets must exist. `{select: X}` applies only to an `ats`, and `X` must be one of its
-sources. `demand` is carried for the loading checks (not used in v0.1 routines).
+`overrides` set equipment and valve states; the target must exist. `demand` is a load factor per
+load class, applied to `heat_kw`. `conditions` carry the boundary the facility side imposes —
+`facility_supply_c` is what `inlet_temp` needs, and a mode that omits it makes that check `UNRUN`.
 
 ## Assertions
 
 `{id, check, args, modes, severity?}`. `modes` is `all`, or a list of mode names and/or the
 pseudo-modes `static` (runs once on the design) and `meta` (runs over the other results).
-`severity: warn` turns a `FAIL` into `WARN`. Routine semantics: `CHECKS.md`.
+`severity: warn` turns a `FAIL` into a `WARN`. Routine semantics: `CHECKS.md`.

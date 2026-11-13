@@ -1,4 +1,4 @@
-"""Load a Prescript netlist (YAML, grammar v0.1) and elaborate it into the IR.
+"""Load a Prescript netlist (YAML, grammar v0.2) and elaborate it into the IR.
 
 Grammar SSOT: docs/PRESCRIPT-LANGUAGE.md. This module implements it; change both together.
 """
@@ -21,16 +21,19 @@ from prescript.ir import (
     Design,
     Device,
     Edge,
+    Fluid,
     Mode,
     Node,
 )
 
-SUPPORTED_GRAMMAR = {"0.1"}
+SUPPORTED_GRAMMAR = {"0.2"}
 _PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _NODE_KEYS = {"id", "kind", "state", "provenance"}
 _DEVICE_KEYS = {"id", "kind", "state", "provenance"}
-# Rated kinds must carry provenance (AGENTS.md -> "Provenance is mandatory").
-_RATED_KINDS = {"source", "transformer", "bus", "panel", "ups", "generator", "load"}
+_VALVE_STATES = {"open", "closed"}
+# Everything in a cooling loop carries ratings, so provenance is mandatory on every node kind
+# (AGENTS.md -> "Provenance is mandatory").
+_RATED_KINDS = NODE_KINDS
 
 
 class NetlistError(ValueError):
@@ -110,6 +113,18 @@ def _elaborate(
 # ----------------------------------------------------------------- conversion ---
 
 
+def _to_fluid(name: str, raw: dict[str, Any]) -> Fluid:
+    if not raw.get("provenance"):
+        raise NetlistError(f"fluid {name}: provenance is mandatory")
+    unknown = set(raw) - {"cp_kj_kgk", "density_kg_l", "provenance"}
+    if unknown:
+        raise NetlistError(f"fluid {name}: unknown keys {sorted(unknown)}")
+    try:
+        return Fluid(name=name, **raw)
+    except ValidationError as exc:
+        raise NetlistError(f"fluid {name}: {exc}") from exc
+
+
 def _to_node(raw: dict[str, Any], origin: str | None) -> Node:
     if "id" not in raw or "kind" not in raw:
         raise NetlistError(f"node needs id and kind: {raw}")
@@ -136,13 +151,16 @@ def _to_device(raw: dict[str, Any], edge_label: str) -> Device:
         raise NetlistError(f"edge {edge_label}: via needs id and kind")
     if raw["kind"] not in DEVICE_KINDS:
         raise NetlistError(f"device {raw['id']}: unknown kind '{raw['kind']}'")
+    state = raw.get("state", "open")
+    if state not in _VALVE_STATES:
+        raise NetlistError(f"device {raw['id']}: state must be open or closed, not '{state}'")
     attrs = {k: v for k, v in raw.items() if k not in _DEVICE_KEYS}
     try:
         return Device(
             id=str(raw["id"]),
             kind=raw["kind"],
             attrs=attrs,
-            state=raw.get("state", "closed"),
+            state=state,
             provenance=raw.get("provenance"),
         )
     except ValidationError as exc:
@@ -167,23 +185,6 @@ def _to_edge(raw: dict[str, Any]) -> Edge:
         bidirectional=bool(raw.get("bidirectional", False)),
         role=raw.get("role"),
     )
-
-
-def _ats_legs(nodes: dict[str, Node]) -> list[Edge]:
-    """An ATS declares `sources:`; elaboration turns them into synthetic supply edges."""
-    legs: list[Edge] = []
-    for node in nodes.values():
-        if node.kind != "ats":
-            continue
-        sources = node.get("sources") or []
-        if len(sources) < 2:
-            raise NetlistError(f"ats {node.id}: needs at least two sources")
-        preferred = node.get("preferred")
-        if preferred not in sources:
-            raise NetlistError(f"ats {node.id}: preferred '{preferred}' is not one of its sources")
-        for src in sources:
-            legs.append(Edge(src=str(src), dst=node.id, role="ats_leg", synthetic=True))
-    return legs
 
 
 def _to_assertion(raw: dict[str, Any], mode_names: set[str]) -> Assertion:
@@ -221,18 +222,15 @@ def _validate(design: Design) -> None:
             if edge.via.id in ids or edge.via.id in device_ids:
                 raise NetlistError(f"duplicate id '{edge.via.id}'")
             device_ids.add(edge.via.id)
+    for node in design.nodes.values():
+        fluid = node.get("fluid")
+        if fluid is not None and str(fluid) not in design.fluids:
+            raise NetlistError(f"node {node.id}: unknown fluid '{fluid}'")
     targets = ids | device_ids
     for mode in design.modes.values():
-        for target, value in mode.overrides.items():
+        for target in mode.overrides:
             if target not in targets:
                 raise NetlistError(f"mode {mode.name}: override targets unknown id '{target}'")
-            if isinstance(value, dict):
-                selected = value.get("select")
-                node = design.nodes.get(target)
-                if node is None or node.kind != "ats":
-                    raise NetlistError(f"mode {mode.name}: 'select' only applies to an ats")
-                if selected not in (node.get("sources") or []):
-                    raise NetlistError(f"mode {mode.name}: {target} cannot select '{selected}'")
 
 
 # --------------------------------------------------------------------- public ---
@@ -251,6 +249,7 @@ def parse_design(doc: dict[str, Any]) -> Design:
     if grammar not in SUPPORTED_GRAMMAR:
         raise NetlistError(f"unsupported grammar version prescript: {grammar}")
 
+    fluids = {str(n): _to_fluid(str(n), body) for n, body in (doc.get("fluids") or {}).items()}
     raw_nodes, block_edges = _elaborate(doc.get("nodes") or [], doc.get("blocks") or {})
     nodes: dict[str, Node] = {}
     for raw, origin in raw_nodes:
@@ -260,13 +259,13 @@ def parse_design(doc: dict[str, Any]) -> Design:
         nodes[node.id] = node
 
     edges = [_to_edge(e) for e in [*block_edges, *(doc.get("edges") or [])]]
-    edges.extend(_ats_legs(nodes))
 
     modes = {
         str(name): Mode(
             name=str(name),
             overrides=body.get("overrides") or {},
             demand=body.get("demand") or {},
+            conditions=body.get("conditions") or {},
             note=body.get("note"),
         )
         for name, body in (doc.get("modes") or {}).items()
@@ -283,6 +282,7 @@ def parse_design(doc: dict[str, Any]) -> Design:
             prescript=grammar,
             project=str(doc.get("project", "unnamed")),
             units=doc.get("units") or {},
+            fluids=fluids,
             nodes=nodes,
             edges=tuple(edges),
             modes=modes,
