@@ -11,7 +11,7 @@
 
 ## Code
 
-- Engineering units live in field names (`rating_kva`, `rating_a`, `voltage_kv`, `start_time_s`).
+- Engineering units live in field names (`rating_kw`, `rating_lpm`, `delta_t_k`, `max_inlet_c`).
   Never store a bare number whose unit is implied.
 - IDs are strings and case-sensitive; side tags are matched as whole `-A`/`-B` segments.
 - Checks are pure functions of `(Design, ModeState, args)`. No I/O, no globals, no randomness.

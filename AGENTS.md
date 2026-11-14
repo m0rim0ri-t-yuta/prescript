@@ -21,10 +21,12 @@ Everything else: act, then report.
 
 ## Project Overview
 
-Prescript is a spec-as-code and verification pipeline for physical power systems, borrowing the
-discipline of hardware description languages (Verilog/SystemVerilog): a design is written as a
+Prescript is a spec-as-code and verification pipeline for data-center liquid cooling, borrowing
+the discipline of hardware description languages (Verilog/SystemVerilog): a design is written as a
 netlist, elaborated into an IR, and checked by assertions across operating modes on every pull
-request. The PoC targets one US data-center scalable unit (GB200 NVL72, 1 SU, Tier III, 2N).
+request. The scope is the technology cooling loop (TCS) on the rack side of the CDU, because that
+is what a retrofit changes; the facility water loop enters as a mode condition. The PoC targets one
+data-center scalable unit (GB200 NVL72, 1 SU, direct liquid cooled, 2N CDU).
 Roadmap and scope: `docs/ROADMAP.md`.
 
 ## Architecture
@@ -33,8 +35,12 @@ Non-obvious constraints only — everything else is discoverable from the repo
 (`docs/ARCHITECTURE.md`).
 
 - **Pipeline**: `netlist.yaml` → `loader` (parse + block elaboration) → `ir.Design` →
-  `modes` (per-mode energization) → `checks` → `report`. Each stage consumes only the previous
+  `modes` (per-mode circulation) → `checks` → `report`. Each stage consumes only the previous
   stage's output; checks never read YAML.
+- **A loop, not a tree**: edges point the way the coolant travels, so a design is a set of cycles.
+  `circulating` is what a running CDU reaches; `draining` is what reaches one back. A branch in the
+  first and not the second is a dead leg and carries no flow. A **valve conducts when `open`** —
+  the opposite of a breaker, and the usual sign error when porting a power rule.
 - **Never pass on missing data**: a check that touches a `null` rating returns `UNRUN`, never
   `PASS`. A check that is not implemented also returns `UNRUN`. This is the product's core promise
   (`agent-config/rules/verification-semantics.md`).
@@ -43,16 +49,18 @@ Non-obvious constraints only — everything else is discoverable from the repo
 - **Public data only**: everything under `examples/` comes from public reference designs, standards
   or explicit assumptions (`agent-config/rules/public-data.md`).
 - **Grammar SSOT** is `docs/PRESCRIPT-LANGUAGE.md`; the loader implements it. Change both in one PR.
-- **No physics we cannot defend**: short-circuit duty, harmonics and transient stability stay
-  `UNRUN` (or simplified with the method named in the result) until a validated method exists.
-  Industry simulators are integration targets, not things we re-implement.
+- **No physics we cannot defend**: pressure drop, flow balance between racks and transient
+  behaviour stay `UNRUN` (or simplified with the method named in the result) until a validated
+  method exists. v0.2 goes no further than the steady-state sensible-heat balance
+  `Q = V * rho * cp * dT`. Industry simulators are integration targets, not things we re-implement.
 
 ## Key Paths
 
 - `src/prescript/ir.py` — IR (pydantic): nodes, edges, devices, modes, assertions
 - `src/prescript/loader.py` — YAML → IR, block elaboration, validation
-- `src/prescript/modes.py` — per-mode state resolution and energization
-- `src/prescript/checks/` — one module per assertion routine; registry in `checks/__init__.py`
+- `src/prescript/modes.py` — per-mode state resolution, circulation and dead legs
+- `src/prescript/checks/` — one module per assertion routine; registry in `checks/__init__.py`;
+  the flow/heat accumulation every sizing check shares lives in `checks/_util.py`
 - `src/prescript/cli.py` — `prescript verify` / `prescript elaborate`
 - `examples/gb200-1su/netlist.yaml` — the reference design
 

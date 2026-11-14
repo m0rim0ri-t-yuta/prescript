@@ -4,22 +4,35 @@ Status rules for every routine: `agent-config/rules/verification-semantics.md`.
 
 ## Implemented
 
-| Routine        | Args                                  | PASS when                                                     | UNRUN when                         |
-| -------------- | ------------------------------------- | ------------------------------------------------------------- | ---------------------------------- |
-| `dual_path`    | `class`, `sides` (default `[A, B]`)   | every `dual_fed` load of `class` has a live feed from each side | no mode; no dual-fed loads          |
-| `path_exists`  | `class`, `from?`                      | every load of `class` is energized (through `from`, if given)  | no mode; no loads of `class`        |
-| `completeness` | `kinds`                               | every element of `kinds` has non-null `rating_*` (+ `break_ka` on breakers) | no element of `kinds`  |
-| `coverage`     | —                                     | every non-meta assertion × mode cell ran (not `UNRUN`)        | nothing to cover                    |
+| Routine        | Args                                              | PASS when                                                              | UNRUN when                                        |
+| -------------- | ------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------- |
+| `loop_closed`  | `class`, `via?`                                   | every load of `class` sits on a closed loop back to a CDU (through `via`, if given) | no mode; no loads of `class`          |
+| `dual_path`    | `class`, `sides` (default `[A, B]`)               | every `dual_fed` load of `class` has a live feed from each side        | no mode; no dual-fed loads                        |
+| `loading`      | `basis` (`flow`\|`heat`), `kinds`, `limit`        | no element of `kinds` carries more than `limit` × its rating           | no mode; no elements; nothing circulating; any null rating or load input |
+| `inlet_temp`   | `class`                                           | facility supply + CDU approach stays under each load's `max_inlet_c`   | no mode; no loads; the mode sets no `facility_supply_c`; any null input  |
+| `completeness` | `kinds`                                           | every element of `kinds` has non-null `rating_*` (+ `kv_m3h` on valves) | no element of `kinds`                            |
+| `coverage`     | —                                                 | every non-meta assertion × mode cell ran (not `UNRUN`)                 | nothing to cover                                  |
+
+### How `loading` gets its numbers
+
+A load's flow comes from the steady-state sensible-heat balance `Q = V · rho · cp · dT`, with
+`rho · cp` taken from the `fluids:` entry the load names and `dT` from its `delta_t_k`. Each load's
+flow (or heat) is then walked around its own loop — up the supply side to the CDU that drives it,
+and down the return side back to that CDU — splitting by the edge `share` at every branch. Paths
+through another load are not traversed, and a dead leg carries nothing.
+
+This is a steady-state balance, not a hydraulic solution: it says how much has to pass through an
+element, not whether the pump can push it there. `pressure_drop` and `balance` are the routines
+that answer that, and neither is implemented.
 
 ## Planned (return `UNRUN: not implemented`)
 
-| Routine            | Intent                                                                 | Milestone |
-| ------------------ | ---------------------------------------------------------------------- | --------- |
-| `loading`          | Per-mode load flow (demand × class) vs rating, kVA or A basis           | W2        |
-| `n_minus_1`        | Remove each element of the swept kinds; critical loads keep a path     | W2        |
-| `diverse_upstream` | A and B feeds of a critical load share no element up to `up_to`         | W2        |
-| `standby_diverse`  | Duty and standby essential loads sit on different panels                | W2        |
-| `generator_margin` | Generator kW ≥ essential + UPS recharge × factor                        | W2        |
-| `time_margin`      | UPS battery minutes vs generator start / thermal limit                  | W2        |
-| `consistency`      | Netlist values match the spec table                                    | W3        |
-| `breaker_duty`     | Simplified fault-current screen vs `break_ka`, method named in result   | W3        |
+| Routine          | Intent                                                                   | Milestone |
+| ---------------- | ------------------------------------------------------------------------ | --------- |
+| `n_minus_1`      | Remove each element of the swept kinds; every load keeps a closed loop    | W2        |
+| `pressure_drop`  | 1-D pipe network against the pump curve, method named in the result       | W2        |
+| `balance`        | Flow per rack within tolerance of its requirement across the hall         | W2        |
+| `return_temp`    | Mixed return temperature at the CDU against its design range              | W2        |
+| `ride_through`   | Loop thermal mass vs the time the IT load can be carried without cooling  | W3        |
+| `leak_isolation` | Every branch can be isolated without stopping a load that is still running | W3       |
+| `consistency`    | Netlist values match the spec table                                       | W3        |

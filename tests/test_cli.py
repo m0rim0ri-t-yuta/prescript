@@ -14,7 +14,7 @@ runner = CliRunner()
 def test_verify_reference_exits_zero() -> None:
     res = runner.invoke(app, ["verify", str(REFERENCE)])
     assert res.exit_code == 0, res.output
-    assert "GB200-1SU-POC" in res.output
+    assert "GB200-1SU-DLC-POC" in res.output
 
 
 def test_verify_strict_fails_on_unrun() -> None:
@@ -27,19 +27,20 @@ def test_verify_markdown_for_pr_comments() -> None:
 
 
 def test_verify_exits_one_on_fail(tmp_path: Path) -> None:
+    """A GPU refresh that the surviving CDU cannot carry — the roadmap demo."""
     text = REFERENCE.read_text(encoding="utf-8").replace(
-        "ups-bypass-A:\n    overrides: {UPS-A: bypass, SW-BYP-A: closed}",
-        "ups-bypass-A:\n    overrides: {UPS-A: bypass}",  # bypass switch left open -> side A dead
+        "params: {heat_kw: 150, delta_t_k: 10",
+        "params: {heat_kw: 200, delta_t_k: 10",
     )
-    broken = tmp_path / "netlist.yaml"
-    broken.write_text(text, encoding="utf-8")
-    res = runner.invoke(app, ["verify", str(broken)])
+    retrofit = tmp_path / "netlist.yaml"
+    retrofit.write_text(text, encoding="utf-8")
+    res = runner.invoke(app, ["verify", str(retrofit)])
     assert res.exit_code == 1
-    assert "A-01@ups-bypass-A" in res.output
+    assert "C-05@maint-cdu-A" in res.output
 
 
 def test_netlist_error_exits_two(tmp_path: Path) -> None:
     bad = tmp_path / "bad.yaml"
-    bad.write_text(yaml.safe_dump({"prescript": "0.1", "nodes": [{"id": "X"}]}), encoding="utf-8")
+    bad.write_text(yaml.safe_dump({"prescript": "0.2", "nodes": [{"id": "X"}]}), encoding="utf-8")
     res = runner.invoke(app, ["verify", str(bad)])
     assert res.exit_code == 2

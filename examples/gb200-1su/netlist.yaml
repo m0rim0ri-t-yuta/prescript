@@ -1,66 +1,69 @@
-# Prescript netlist — GB200 NVL72, 1 Scalable Unit (8 racks), Tier III, 2N electrical
-# Derived from public sources only (NVIDIA RA RA11338001, Uptime Tier III definitions, OCP);
-# every other value is marked `assumed`. Spec workbook: docs/ROADMAP.md -> Reference design.
-# Grammar (v0.1):
-#   nodes:   every bus, source, converter, switchgear, feeder and load is a node with a `kind`
-#   edges:   directed from supply side to load side; a `via` names the breaker/switch on that edge
-#   ratings: kW / kVA / A / kA as the spec gives them; a missing rating is `null`, never a guess
-#   state:   closed|open for switches, on|off|bypass|battery for converters; `modes` override these
-#   provenance: every rating carries where it came from (spec cell or "assumed")
+# Prescript netlist — GB200 NVL72, 1 Scalable Unit (8 racks), direct liquid cooling, 2N CDU
+# Scope: the technology cooling loop (TCS). The facility water loop on the other side of the CDU
+# exchanger is a boundary condition, given per mode as `conditions.facility_supply_c`.
+# Rack count and IT power follow NVIDIA's public reference architecture (RA11338001); every
+# cooling figure is marked `assumed` with a round number — this repository holds no vendor data.
+# Grammar (v0.2):
+#   nodes:   every cdu, pump, header, manifold and load is a node with a `kind`
+#   edges:   directed the way the coolant travels; a `via` names the valve on that edge
+#   ratings: kW / L/min / kPa as the spec gives them; a missing rating is `null`, never a guess
+#   state:   open|closed for valves, on|off|standby for equipment; `modes` override these
+#   provenance: every node says where its numbers came from (a public source or "assumed")
 #   Rule: the verifier never passes a check that touched a `null` rating; it reports UNRUN.
 
-prescript: 0.1
-project: GB200-1SU-POC
-units: {power: kW, apparent: kVA, voltage: kV, current: A, fault: kA, time: s}
+prescript: 0.2
+project: GB200-1SU-DLC-POC
+units: {heat: kW, flow: L/min, temperature: C, pressure: kPa, length: mm, time: s}
+
+# ---------------------------------------------------------------- fluids ----
+# Heat-carrying properties, used by every flow calculation: Q = V * rho * cp * dT.
+fluids:
+  pg25:
+    cp_kj_kgk: 3.85
+    density_kg_l: 1.03
+    provenance: "assumed: 25% propylene glycol / 75% water, round numbers at loop temperature"
 
 # ---------------------------------------------------------------- blocks ----
 # Parameterised standard blocks. Instances below are expanded from these.
 blocks:
-  rack_gb200_nvl72:
-    description: "GB200 NVL72 rack, dual-fed (A/B rack PDUs), 8 power shelves x 6 PSU 5.5kW, N redundancy"
-    params: {rated_kw: 150, pdu_rating_a: 200, pdu_voltage_kv: 0.415}
-    provenance: "NVIDIA RA RA11338001: 1.2MW/8 racks; shelf/PSU config. PDU rating assumed (S-06)."
+  cdu_loop:
+    description: "One CDU with a duty and a standby pump, and its supply and return headers"
+    params: {rating_kw: 1500, rating_lpm: 2300, approach_k: 3, dn_mm: 150}
+    provenance: "assumed (S-20): round numbers, no vendor data in this repository"
     expands_to:
-      - {id: "PDU-A-{n}", kind: rack_pdu, rating_a: "{pdu_rating_a}", voltage_kv: "{pdu_voltage_kv}", side: A}
-      - {id: "PDU-B-{n}", kind: rack_pdu, rating_a: "{pdu_rating_a}", voltage_kv: "{pdu_voltage_kv}", side: B}
-      - {id: "RACK-{n}", kind: load, class: critical, rated_kw: "{rated_kw}", dual_fed: true}
+      - {id: "CDU-{s}", kind: cdu, rating_kw: "{rating_kw}", rating_lpm: "{rating_lpm}", approach_k: "{approach_k}", side: "{s}", fluid: pg25}
+      - {id: "PMP-{s}-1", kind: pump, rating_lpm: "{rating_lpm}", rating_kpa: null}
+      - {id: "PMP-{s}-2", kind: pump, rating_lpm: "{rating_lpm}", rating_kpa: null, state: standby, standby_of: "PMP-{s}-1"}
+      - {id: "HDR-S-{s}", kind: header, rating_lpm: "{rating_lpm}", dn_mm: "{dn_mm}", service: supply, fluid: pg25}
+      - {id: "HDR-R-{s}", kind: header, rating_lpm: "{rating_lpm}", dn_mm: "{dn_mm}", service: return, fluid: pg25}
     edges:
-      - {from: "DP-A", to: "PDU-A-{n}", via: {id: "CB-DPA-{n}", kind: breaker, rating_a: 250, break_ka: null}}
-      - {from: "DP-B", to: "PDU-B-{n}", via: {id: "CB-DPB-{n}", kind: breaker, rating_a: 250, break_ka: null}}
-      - {from: "PDU-A-{n}", to: "RACK-{n}", share: 0.5}
-      - {from: "PDU-B-{n}", to: "RACK-{n}", share: 0.5}
+      - {from: "CDU-{s}", to: "PMP-{s}-1", via: {id: "V-PMP-{s}-1", kind: valve, kv_m3h: null}}
+      - {from: "CDU-{s}", to: "PMP-{s}-2", via: {id: "V-PMP-{s}-2", kind: valve, kv_m3h: null}}
+      - {from: "PMP-{s}-1", to: "HDR-S-{s}"}
+      - {from: "PMP-{s}-2", to: "HDR-S-{s}"}
+      - {from: "HDR-R-{s}", to: "CDU-{s}"}
 
-  ups_block:
-    description: "Static double-conversion UPS with internal static bypass and battery"
-    params: {rating_kva: 1500, battery_min: 10, pf: 0.95}
-    provenance: "S-05 (assumed)"
+  rack_gb200_nvl72:
+    description: "GB200 NVL72 rack, cold-plate cooled, dual-fed from the A and B rack manifolds"
+    params: {heat_kw: 150, delta_t_k: 10, max_inlet_c: 45, manifold_lpm: 300}
+    provenance: "NVIDIA RA RA11338001: ~1.2 MW IT across 8 racks. Cooling figures assumed (S-21)."
     expands_to:
-      - {id: "UPS-{s}", kind: ups, rating_kva: "{rating_kva}", battery_min: "{battery_min}", pf: "{pf}", state: on}
-      - {id: "UPSOUT-{s}", kind: bus, voltage_kv: 0.415}
+      - {id: "MAN-A-{n}", kind: manifold, rating_lpm: "{manifold_lpm}", ports: 8, side: A, fluid: pg25}
+      - {id: "MAN-B-{n}", kind: manifold, rating_lpm: "{manifold_lpm}", ports: 8, side: B, fluid: pg25}
+      - {id: "RACK-{n}", kind: rack, class: it_liquid, heat_kw: "{heat_kw}", delta_t_k: "{delta_t_k}", max_inlet_c: "{max_inlet_c}", dual_fed: true, fluid: pg25}
     edges:
-      - {from: "LVMSB-{s}", to: "UPS-{s}", via: {id: "CB-UPSIN-{s}", kind: breaker, rating_a: 2500, break_ka: null}, role: rectifier_input}
-      - {from: "LVMSB-{s}", to: "UPS-{s}", via: {id: "SW-BYP-{s}", kind: switch, state: open}, role: bypass_input}
-      - {from: "UPS-{s}", to: "UPSOUT-{s}", via: {id: "CB-UPSOUT-{s}", kind: breaker, rating_a: 2500, break_ka: null}}
+      - {from: "HDR-S-A", to: "MAN-A-{n}", via: {id: "V-SA-{n}", kind: valve, kv_m3h: null}}
+      - {from: "HDR-S-B", to: "MAN-B-{n}", via: {id: "V-SB-{n}", kind: valve, kv_m3h: null}}
+      - {from: "MAN-A-{n}", to: "RACK-{n}", share: 0.5}
+      - {from: "MAN-B-{n}", to: "RACK-{n}", share: 0.5}
+      - {from: "RACK-{n}", to: "HDR-R-A", via: {id: "V-RA-{n}", kind: valve, kv_m3h: null}, share: 0.5}
+      - {from: "RACK-{n}", to: "HDR-R-B", via: {id: "V-RB-{n}", kind: valve, kv_m3h: null}, share: 0.5}
 
 # ---------------------------------------------------------------- nodes -----
 nodes:
-  # Utility and transformers (S-02, S-03)
-  - {id: UTIL-A, kind: source, voltage_kv: null, fault_mva: null, provenance: "S-02 voltage undecided"}
-  - {id: UTIL-B, kind: source, voltage_kv: null, fault_mva: null, provenance: "S-02 voltage undecided"}
-  - {id: TR-A, kind: transformer, rating_kva: 2000, z_pct: 6.0, hv_kv: null, lv_kv: 0.415, provenance: "S-03 assumed"}
-  - {id: TR-B, kind: transformer, rating_kva: 2000, z_pct: 6.0, hv_kv: null, lv_kv: 0.415, provenance: "S-03 assumed"}
-
-  # Low-voltage main switchboards and tie (S-04)
-  - {id: LVMSB-A, kind: bus, voltage_kv: 0.415, rating_a: 3200, provenance: "S-04 assumed"}
-  - {id: LVMSB-B, kind: bus, voltage_kv: 0.415, rating_a: 3200, provenance: "S-04 assumed"}
-
-  # UPS blocks (expanded from ups_block, s = A|B)
-  - {use: ups_block, s: A}
-  - {use: ups_block, s: B}
-
-  # Distribution panels downstream of UPS (S-06)
-  - {id: DP-A, kind: panel, voltage_kv: 0.415, rating_a: 2500, provenance: "S-06 assumed"}
-  - {id: DP-B, kind: panel, voltage_kv: 0.415, rating_a: 2500, provenance: "S-06 assumed"}
+  # CDUs and their headers (expanded from cdu_loop, s = A|B), 2N
+  - {use: cdu_loop, s: A}
+  - {use: cdu_loop, s: B}
 
   # Racks (expanded from rack_gb200_nvl72, n = 01..08)
   - {use: rack_gb200_nvl72, n: "01"}
@@ -72,103 +75,72 @@ nodes:
   - {use: rack_gb200_nvl72, n: "07"}
   - {use: rack_gb200_nvl72, n: "08"}
 
-  # Pod auxiliaries (S-12), dual-fed from DP-A/DP-B
-  - {id: AUX-01, kind: load, class: critical, rated_kw: 80, dual_fed: true, provenance: "S-12 OCP example 10kW/rack"}
-
-  # Emergency: generator, ATS, emergency bus, emergency panels (S-10, S-11)
-  - {id: GEN-01, kind: generator, rating_kw: 2000, start_time_s: 60, state: off, provenance: "S-10 assumed"}
-  - {id: ATS-01, kind: ats, sources: [LVMSB-A, GEN-01], preferred: LVMSB-A, provenance: "S-10"}
-  - {id: ATS-02, kind: ats, sources: [LVMSB-B, GEN-01], preferred: LVMSB-B, provenance: "S-10"}
-  - {id: EM-BUS, kind: bus, voltage_kv: 0.415, rating_a: 3200, provenance: "S-10 assumed"}
-  - {id: EDP-A, kind: panel, voltage_kv: 0.415, rating_a: 400, provenance: "S-11 assumed"}
-  - {id: EDP-B, kind: panel, voltage_kv: 0.415, rating_a: 400, provenance: "S-11 assumed"}
-
-  # Essential loads (02_Loads)
-  - {id: CDU-01,  kind: load, class: essential, rated_kw: 30, provenance: "S-11 assumed"}
-  - {id: CDU-02,  kind: load, class: essential, rated_kw: 30, standby_of: CDU-01, provenance: "S-11 assumed"}
-  - {id: PMP-01,  kind: load, class: essential, rated_kw: 15, provenance: "S-11 assumed"}
-  - {id: PMP-02,  kind: load, class: essential, rated_kw: 15, standby_of: PMP-01, provenance: "S-11 assumed"}
-  - {id: CRAH-01, kind: load, class: essential, rated_kw: 20, provenance: "S-11 assumed"}
-  - {id: CRAH-02, kind: load, class: essential, rated_kw: 20, standby_of: CRAH-01, provenance: "S-11 assumed"}
-  - {id: BMS-01,  kind: load, class: essential, rated_kw: 10, provenance: "assumed"}
+  # Residual air-cooled load of the hall (switching, PSU losses) on rear-door exchangers (S-22)
+  - {id: RDHX-01, kind: rdhx, class: it_air, heat_kw: 120, delta_t_k: 10, max_inlet_c: 40, dual_fed: true, fluid: pg25, provenance: "assumed: 10% of IT power stays in air"}
 
 # ---------------------------------------------------------------- edges -----
 edges:
-  # Utility -> transformer -> LV main switchboard
-  - {from: UTIL-A, to: TR-A, via: {id: CB-HVA, kind: breaker, rating_a: null, break_ka: null}}
-  - {from: UTIL-B, to: TR-B, via: {id: CB-HVB, kind: breaker, rating_a: null, break_ka: null}}
-  - {from: TR-A, to: LVMSB-A, via: {id: ACB-A, kind: breaker, rating_a: 3200, break_ka: 65}}
-  - {from: TR-B, to: LVMSB-B, via: {id: ACB-B, kind: breaker, rating_a: 3200, break_ka: 65}}
-  # Bus tie, normally open (S-04)
-  - {from: LVMSB-A, to: LVMSB-B, via: {id: TIE-AB, kind: breaker, rating_a: 3200, break_ka: 65, state: open}, bidirectional: true}
-  # UPS output -> distribution panels
-  - {from: UPSOUT-A, to: DP-A, via: {id: CB-DPA, kind: breaker, rating_a: 2500, break_ka: null}}
-  - {from: UPSOUT-B, to: DP-B, via: {id: CB-DPB, kind: breaker, rating_a: 2500, break_ka: null}}
-  # Pod auxiliaries, dual-fed
-  - {from: DP-A, to: AUX-01, via: {id: CB-AUXA, kind: breaker, rating_a: 160, break_ka: null}, share: 0.5}
-  - {from: DP-B, to: AUX-01, via: {id: CB-AUXB, kind: breaker, rating_a: 160, break_ka: null}, share: 0.5}
-  # Emergency bus fed via ATS from either LV main board or generator
-  - {from: ATS-01, to: EM-BUS, via: {id: CB-EM-A, kind: breaker, rating_a: 1600, break_ka: null}}
-  - {from: ATS-02, to: EM-BUS, via: {id: CB-EM-B, kind: breaker, rating_a: 1600, break_ka: null, state: open}}
-  - {from: EM-BUS, to: EDP-A, via: {id: CB-EDPA, kind: breaker, rating_a: 400, break_ka: null}}
-  - {from: EM-BUS, to: EDP-B, via: {id: CB-EDPB, kind: breaker, rating_a: 400, break_ka: null}}
-  # Essential loads split across EDP-A / EDP-B (duty on A, standby on B)
-  - {from: EDP-A, to: CDU-01}
-  - {from: EDP-B, to: CDU-02}
-  - {from: EDP-A, to: PMP-01}
-  - {from: EDP-B, to: PMP-02}
-  - {from: EDP-A, to: CRAH-01}
-  - {from: EDP-B, to: CRAH-02}
-  - {from: EDP-A, to: BMS-01}
+  # Rear-door exchangers hang off both supply headers and return to both return headers
+  - {from: HDR-S-A, to: RDHX-01, via: {id: V-SA-RDHX, kind: valve, kv_m3h: null}, share: 0.5}
+  - {from: HDR-S-B, to: RDHX-01, via: {id: V-SB-RDHX, kind: valve, kv_m3h: null}, share: 0.5}
+  - {from: RDHX-01, to: HDR-R-A, via: {id: V-RA-RDHX, kind: valve, kv_m3h: null}, share: 0.5}
+  - {from: RDHX-01, to: HDR-R-B, via: {id: V-RB-RDHX, kind: valve, kv_m3h: null}, share: 0.5}
 
 # ---------------------------------------------------------------- modes -----
-# Each mode overrides node/switch states and applies demand factors from 02_Loads.
+# Each mode overrides equipment and valve states, sets the facility-side boundary condition and
+# applies demand factors per load class.
 modes:
   normal:
     overrides: {}
-    demand: {critical: 1.0, essential_duty: 1.0, essential_standby: 0.0}
-  maint-A:
-    overrides: {TR-A: off, LVMSB-A: off, UPS-A: off, "ATS-01": {select: GEN-01}, CB-EM-A: open, CB-EM-B: closed}
-    demand: {critical: 1.0, essential_duty: 1.0, essential_standby: 1.0}
-    note: "Tier III concurrent maintainability: everything on A isolated; B carries full IT load"
-  maint-B:
-    overrides: {TR-B: off, LVMSB-B: off, UPS-B: off}
-    demand: {critical: 1.0, essential_duty: 1.0, essential_standby: 1.0}
-  ups-bypass-A:
-    overrides: {UPS-A: bypass, SW-BYP-A: closed}
-    demand: {critical: 1.0, essential_duty: 1.0, essential_standby: 0.0}
-  generator:
-    overrides: {UTIL-A: off, UTIL-B: off, GEN-01: on, "ATS-01": {select: GEN-01}, "ATS-02": {select: GEN-01}, UPS-A: battery, UPS-B: battery}
-    demand: {critical: 1.0, essential_duty: 1.0, essential_standby: 1.0}
-    note: "Generator must carry essential loads plus UPS rectifier input once UPS returns from battery"
-  dead-pod:
-    overrides: {UTIL-A: off, UTIL-B: off, GEN-01: off, UPS-A: battery, UPS-B: battery, EM-BUS: off}
-    demand: {critical: 0.1, essential_duty: 0.0, essential_standby: 0.0}
-    note: "Cooling lost; how long until GPUs must shut down vs battery minutes"
-  tie-closed:
-    overrides: {TIE-AB: closed}
-    demand: {critical: 1.0, essential_duty: 1.0, essential_standby: 0.0}
-    note: "Max fault current case for breaker duty"
+    demand: {it_liquid: 1.0, it_air: 1.0}
+    conditions: {facility_supply_c: 20}
+  maint-cdu-A:
+    overrides: {CDU-A: off}
+    demand: {it_liquid: 1.0, it_air: 1.0}
+    conditions: {facility_supply_c: 20}
+    note: "Concurrent maintainability: CDU-A isolated, CDU-B carries the whole hall"
+  maint-cdu-B:
+    overrides: {CDU-B: off}
+    demand: {it_liquid: 1.0, it_air: 1.0}
+    conditions: {facility_supply_c: 20}
+  pump-fail-A:
+    overrides: {PMP-A-1: off, PMP-A-2: on}
+    demand: {it_liquid: 1.0, it_air: 1.0}
+    conditions: {facility_supply_c: 20}
+    note: "N+1: the duty pump of CDU-A stops and the standby takes the load"
+  summer-peak:
+    overrides: {}
+    demand: {it_liquid: 1.0, it_air: 1.0}
+    conditions: {facility_supply_c: 32}
+    note: "Facility water at its design maximum"
+  valve-shut-01:
+    overrides: {V-SA-01: closed}
+    demand: {it_liquid: 1.0, it_air: 1.0}
+    conditions: {facility_supply_c: 20}
+    note: "One rack branch isolated on side A — worst flow imbalance case"
+  facility-loss:
+    overrides: {CDU-A: off, CDU-B: off}
+    demand: {it_liquid: 0.1, it_air: 0.0}
+    conditions: {facility_supply_c: 45}
+    note: "Facility water lost and both CDUs trip; how long until the GPUs must throttle"
 
 # ------------------------------------------------------------ assertions ----
-# Mirrors 04_Assertions. `check` names a built-in verifier routine.
+# `check` names a built-in verifier routine; unimplemented ones report UNRUN.
 assertions:
-  - {id: A-01, check: dual_path,        args: {class: critical, sides: [A, B]},             modes: [normal, ups-bypass-A, generator, dead-pod, tie-closed]}
-  # A-16: Tier III concurrent maintainability takes one side down on purpose, so maintenance modes
-  # require a single live path instead of two. (v0.1 of this file asked for dual_path in `all`
-  # modes; `prescript verify` flagged it on the first run.)
-  - {id: A-16, check: path_exists,      args: {class: critical},                           modes: [maint-A, maint-B]}
-  - {id: A-02, check: n_minus_1,        args: {class: critical, sweep: [transformer, bus, ups, panel, rack_pdu, breaker]}, modes: [normal]}
-  - {id: A-03, check: diverse_upstream, args: {class: critical, up_to: transformer},        modes: [normal]}
-  - {id: A-04, check: path_exists,      args: {class: essential, from: EM-BUS},            modes: [generator]}
-  - {id: A-05, check: standby_diverse,  args: {class: essential, level: panel},            modes: [normal]}
-  - {id: A-06, check: loading,          args: {kind: ups, limit: 1.0, basis: kva},          modes: all}
-  - {id: A-07, check: loading,          args: {kind: [transformer, bus, ups, panel, rack_pdu], limit: 1.0}, modes: [maint-A, maint-B]}
-  - {id: A-08, check: generator_margin, args: {gen: GEN-01, include: [essential, ups_input], charge_factor: 1.1}, modes: [generator]}
-  - {id: A-09, check: loading,          args: {kind: rack_pdu, limit: 0.8, basis: amps},    modes: all}
-  - {id: A-10, check: breaker_duty,     args: {method: ieee_simplified},                   modes: [tie-closed]}
-  - {id: A-11, check: time_margin,      args: {battery_of: [UPS-A, UPS-B], must_exceed: {GEN-01: start_time_s}, margin_s: 30}, modes: [generator]}
-  - {id: A-12, check: time_margin,      args: {battery_of: [UPS-A, UPS-B], must_exceed: {gpu_thermal_limit_s: null}}, modes: [dead-pod], severity: warn}
-  - {id: A-13, check: consistency,      args: {against: "02_Loads", fields: [rated_kw]},    modes: [static]}
-  - {id: A-14, check: completeness,     args: {kinds: [transformer, ups, panel, rack_pdu, breaker], fields: [rating]}, modes: [static], severity: warn}
-  - {id: A-15, check: coverage,         args: {modes: all, assertions: [A-01, A-12]},       modes: [meta], severity: warn}
+  - {id: C-01, check: loop_closed,   args: {class: it_liquid},                                  modes: [normal, pump-fail-A, summer-peak, valve-shut-01]}
+  # C-03: maintenance takes one CDU down on purpose, so those modes ask for one closed loop
+  # instead of two; C-02 (both sides live) is asserted only where both sides are expected.
+  - {id: C-02, check: dual_path,     args: {class: it_liquid, sides: [A, B]},                   modes: [normal, pump-fail-A, summer-peak]}
+  - {id: C-03, check: loop_closed,   args: {class: it_liquid},                                  modes: [maint-cdu-A, maint-cdu-B]}
+  - {id: C-04, check: loop_closed,   args: {class: it_air},                                     modes: [normal]}
+  - {id: C-05, check: loading,       args: {basis: flow, kinds: [cdu, pump, header, manifold], limit: 1.0}, modes: all}
+  - {id: C-06, check: loading,       args: {basis: heat, kinds: [cdu], limit: 1.0},             modes: [normal, maint-cdu-A, maint-cdu-B, summer-peak]}
+  - {id: C-07, check: inlet_temp,    args: {class: it_liquid},                                  modes: [normal, summer-peak]}
+  - {id: C-08, check: n_minus_1,     args: {class: it_liquid, sweep: [cdu, pump, header, manifold]}, modes: [normal]}
+  - {id: C-09, check: pressure_drop, args: {method: darcy_weisbach, available_kpa: null},       modes: [normal, valve-shut-01]}
+  - {id: C-10, check: balance,       args: {class: it_liquid, tolerance_pct: 10},               modes: [normal, valve-shut-01]}
+  - {id: C-11, check: ride_through,  args: {class: it_liquid, must_exceed_s: 60},               modes: [facility-loss], severity: warn}
+  - {id: C-12, check: return_temp,   args: {kinds: [cdu]},                                      modes: [normal, summer-peak]}
+  - {id: C-13, check: consistency,   args: {against: "02_Loads", fields: [heat_kw]},            modes: [static]}
+  - {id: C-14, check: completeness,  args: {kinds: [cdu, pump, header, manifold, valve]},       modes: [static], severity: warn}
+  - {id: C-15, check: coverage,      args: {modes: all, assertions: [C-01, C-05]},              modes: [meta], severity: warn}

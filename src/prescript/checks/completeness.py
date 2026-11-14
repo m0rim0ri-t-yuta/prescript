@@ -1,6 +1,6 @@
 """completeness: every element of the named kinds carries non-null ratings.
 
-A rating field is any attribute whose name starts with `rating_` (plus `break_ka` for breakers).
+A rating field is any attribute whose name starts with `rating_` (plus `kv_m3h` for valves).
 This is how the design tells you which other checks will come back UNRUN.
 """
 
@@ -31,7 +31,7 @@ def completeness(design: Design, state: ModeState | None, a: Assertion) -> Resul
     for dev in sorted(design.devices().values(), key=lambda d: d.id):
         if dev.kind in kinds:
             subjects.append(dev.id)
-            missing += _missing(dev.id, dev.attrs, ("break_ka",))
+            missing += _missing(dev.id, dev.attrs, ("kv_m3h",))
 
     if not subjects:
         return Result(a.id, "static", Status.UNRUN, f"no elements of kinds {sorted(kinds)}")
