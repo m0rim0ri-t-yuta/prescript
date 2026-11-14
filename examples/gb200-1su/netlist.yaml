@@ -133,7 +133,11 @@ assertions:
   - {id: C-02, check: dual_path,     args: {class: it_liquid, sides: [A, B]},                   modes: [normal, pump-fail-A, summer-peak]}
   - {id: C-03, check: loop_closed,   args: {class: it_liquid},                                  modes: [maint-cdu-A, maint-cdu-B]}
   - {id: C-04, check: loop_closed,   args: {class: it_air},                                     modes: [normal]}
-  - {id: C-05, check: loading,       args: {basis: flow, kinds: [cdu, pump, header, manifold], limit: 1.0}, modes: all}
+  # C-05: `loading` only means something where something flows. `facility-loss` stops both
+  # CDUs, so that mode has no circulating load to accumulate and the cell could never leave
+  # UNRUN — it is asserted by C-11 (ride_through) instead. Keeping it in `all` would cap
+  # coverage below the 100% the roadmap asks for in W3.
+  - {id: C-05, check: loading,       args: {basis: flow, kinds: [cdu, pump, header, manifold], limit: 1.0}, modes: [normal, maint-cdu-A, maint-cdu-B, pump-fail-A, summer-peak, valve-shut-01]}
   - {id: C-06, check: loading,       args: {basis: heat, kinds: [cdu], limit: 1.0},             modes: [normal, maint-cdu-A, maint-cdu-B, summer-peak]}
   - {id: C-07, check: inlet_temp,    args: {class: it_liquid},                                  modes: [normal, summer-peak]}
   - {id: C-08, check: n_minus_1,     args: {class: it_liquid, sweep: [cdu, pump, header, manifold]}, modes: [normal]}

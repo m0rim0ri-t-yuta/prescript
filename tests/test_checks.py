@@ -207,6 +207,12 @@ def test_reference_design_has_no_fail(design: Design) -> None:
     assert _result(results, "C-03", "maint-cdu-A").status is Status.PASS
 
 
+def test_every_unrun_in_the_reference_is_an_unbuilt_routine(design: Design) -> None:
+    """An assertion is not asked for in a mode where it could never leave UNRUN (#15)."""
+    unrun = [r for r in engine.run(design) if r.status is Status.UNRUN]
+    assert unrun and all("not implemented" in r.detail for r in unrun)
+
+
 def test_fail_without_evidence_is_impossible() -> None:
     with pytest.raises(ValueError, match="offending"):
         Result("X", "normal", Status.FAIL, "no evidence")

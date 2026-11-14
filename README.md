@@ -23,15 +23,16 @@ id    check          normal  maint-cdu-A  maint-cdu-B  pump-fail-A  summer-peak 
 C-01  loop_closed    PASS                              PASS         PASS         PASS
 C-02  dual_path      PASS                              PASS         PASS
 C-03  loop_closed            PASS         PASS
-C-05  loading        PASS    PASS         PASS         PASS         PASS         PASS           UNRUN
+C-05  loading        PASS    PASS         PASS         PASS         PASS         PASS
 C-07  inlet_temp     PASS                                           PASS
 C-09  pressure_drop  UNRUN                                                       UNRUN
 ...
-PASS 22 · FAIL 0 · WARN 2 · UNRUN 10
+PASS 22 · FAIL 0 · WARN 2 · UNRUN 9
 ```
 
 `UNRUN` is deliberate: a check that touches an undecided (`null`) rating, or that is not built yet,
-never reports `PASS`.
+never reports `PASS`. Every `UNRUN` above is a routine that is not built yet; an assertion is not
+asked for in a mode where it could never mean anything.
 
 ## What it checks that a power tool would not
 

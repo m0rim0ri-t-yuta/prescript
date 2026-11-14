@@ -57,9 +57,17 @@ def test_fluid_provenance_is_mandatory(doc: dict[str, Any]) -> None:
         parse_design(doc)
 
 
-def test_mode_all_expands_to_every_mode(design: Design) -> None:
+def test_mode_all_expands_to_every_mode(doc: dict[str, Any]) -> None:
+    doc["assertions"].append({"id": "Z-01", "check": "loop_closed", "modes": "all"})
+    d = parse_design(doc)
+    z01 = next(a for a in d.assertions if a.id == "Z-01")
+    assert set(z01.modes) == set(d.modes)
+
+
+def test_loading_is_not_asserted_where_nothing_circulates(design: Design) -> None:
+    """facility-loss stops both CDUs, so `loading` could never mean anything there (#15)."""
     c05 = next(a for a in design.assertions if a.id == "C-05")
-    assert set(c05.modes) == set(design.modes)
+    assert set(c05.modes) == set(design.modes) - {"facility-loss"}
 
 
 def test_mode_conditions_are_carried(design: Design) -> None:
