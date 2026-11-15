@@ -100,8 +100,11 @@ def load_quantity(
     return float(heat) * factor * 60.0 / (volumetric * delta_t), []
 
 
-def _split(edges: list[Edge], neighbours: list[str], path: frozenset[str]) -> list[float]:
-    """Normalised share of the quantity arriving at this node for each branch; 0.0 to skip."""
+def share_weights(edges: list[Edge], neighbours: list[str], path: frozenset[str]) -> list[float]:
+    """Normalised share of the quantity arriving at this node for each branch; 0.0 to skip.
+
+    Shared so that `accumulate` and `balance` split a branch the same way.
+    """
     weights = [
         0.0 if n in path else (1.0 if e.share is None else float(e.share))
         for e, n in zip(edges, neighbours, strict=True)
@@ -123,7 +126,7 @@ def _charge_supply(
     """Walk up the supply side, charging each element, and stop at the CDU that drives the loop."""
     feeds = [e for e in state.feeds(design, node_id) if design.nodes[e.src].kind not in LOAD_KINDS]
     sources = [e.src for e in feeds]
-    for edge, fraction in zip(feeds, _split(feeds, sources, path), strict=True):
+    for edge, fraction in zip(feeds, share_weights(feeds, sources, path), strict=True):
         if fraction == 0.0:
             continue
         totals[edge.src] = totals.get(edge.src, 0.0) + qty * fraction
@@ -145,7 +148,7 @@ def _charge_return(
         e for e in state.outlets(design, node_id) if design.nodes[e.dst].kind not in LOAD_KINDS
     ]
     destinations = [e.dst for e in outlets]
-    for edge, fraction in zip(outlets, _split(outlets, destinations, path), strict=True):
+    for edge, fraction in zip(outlets, share_weights(outlets, destinations, path), strict=True):
         if fraction == 0.0 or design.nodes[edge.dst].kind in SOURCE_KINDS:
             continue
         totals[edge.dst] = totals.get(edge.dst, 0.0) + qty * fraction

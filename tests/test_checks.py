@@ -7,6 +7,8 @@ from typing import Any
 import pytest
 
 from prescript import engine
+from prescript.checks.balance import METHOD as BALANCE_METHOD
+from prescript.checks.balance import balance
 from prescript.checks.completeness import completeness
 from prescript.checks.dual_path import dual_path
 from prescript.checks.inlet_temp import inlet_temp
@@ -223,6 +225,71 @@ def test_inlet_temp_unrun_without_the_facility_condition(doc: dict[str, Any]) ->
     r = inlet_temp(d, _state(d), _a("inlet_temp"))
     assert r.status is Status.UNRUN
     assert r.missing == ("mode normal.conditions.facility_supply_c",)
+
+
+# --- balance --------------------------------------------------------------------
+
+
+def test_balance_pass_in_normal(design: Design) -> None:
+    r = balance(design, _state(design), _a("balance", tolerance_pct=10))
+    assert r.status is Status.PASS
+    assert "8 it_liquid loads within 10% of their required flow, worst 0%" in r.detail
+    assert BALANCE_METHOD in r.detail  # a screening method says so (verification-semantics §6)
+
+
+def test_balance_pass_with_one_branch_shut(design: Design) -> None:
+    """valve-shut-01 exists for this check: RACK-01 takes its whole 227 L/min through MAN-B-01."""
+    r = balance(design, _state(design, "valve-shut-01"), _a("balance", tolerance_pct=10))
+    assert r.status is Status.PASS
+
+
+def test_balance_fails_when_the_surviving_branch_is_too_small(doc: dict[str, Any]) -> None:
+    """A 150 L/min manifold is enough for half a rack, not for the whole of one."""
+    doc["blocks"]["rack_gb200_nvl72"]["params"]["manifold_lpm"] = 150
+    d = parse_design(doc)
+    r = balance(d, _state(d, "valve-shut-01"), _a("balance", tolerance_pct=10))
+    assert r.status is Status.FAIL
+    assert r.offending == ("RACK-01 227 L/min required, 150 L/min available (-34%)",)
+
+
+def test_balance_counts_every_load_an_element_carries(doc: dict[str, Any]) -> None:
+    """Each side carries 998.6 L/min (racks + half the RDHX) against 600: 227 * 600/998.6."""
+    doc["blocks"]["cdu_loop"]["params"]["rating_lpm"] = 600
+    d = parse_design(doc)
+    r = balance(d, _state(d), _a("balance", tolerance_pct=10))
+    assert r.status is Status.FAIL
+    assert len(r.offending) == 8
+    assert r.offending[0] == "RACK-01 227 L/min required, 136 L/min available (-40%)"
+
+
+def test_balance_pass_when_a_class_draws_nothing(doc: dict[str, Any]) -> None:
+    """Zero demand means zero required flow; it must not divide by it."""
+    doc["modes"]["normal"]["demand"]["it_liquid"] = 0.0
+    d = parse_design(doc)
+    assert balance(d, _state(d), _a("balance")).status is Status.PASS
+
+
+def test_balance_unrun_without_mode(design: Design) -> None:
+    assert balance(design, None, _a("balance")).status is Status.UNRUN
+
+
+def test_balance_unrun_when_a_rating_is_null(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"]["rating_lpm"] = None
+    d = parse_design(doc)
+    r = balance(d, _state(d), _a("balance"))
+    assert r.status is Status.UNRUN
+    assert "CDU-A.rating_lpm" in r.missing
+
+
+def test_balance_unrun_when_nothing_circulates(design: Design) -> None:
+    r = balance(design, _state(design, "facility-loss"), _a("balance"))
+    assert r.status is Status.UNRUN
+    assert r.detail == "no loads are circulating"
+
+
+def test_balance_unrun_for_empty_class(design: Design) -> None:
+    r = balance(design, _state(design), _a("balance", **{"class": "nope"}))
+    assert r.status is Status.UNRUN
 
 
 # --- completeness: null never passes -------------------------------------------
