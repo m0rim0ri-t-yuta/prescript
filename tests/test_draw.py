@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
+from typing import Any
 
 from prescript import modes
 from prescript.draw import to_svg
 from prescript.ir import Design
+from prescript.loader import parse_design
 
 SVG = "{http://www.w3.org/2000/svg}"
 
@@ -41,10 +43,16 @@ def test_draws_every_node_with_its_ratings(design: Design) -> None:
     assert "1500 kW · 2300 L/min" in _texts(root)  # CDU-A, as the netlist writes it
 
 
-def test_an_undecided_rating_is_drawn_as_a_question_mark(design: Design) -> None:
-    """`rating_kpa: null` on every pump: the figure says `?`, it does not fill in a number."""
+def test_a_decided_rating_is_drawn_as_the_netlist_writes_it(design: Design) -> None:
+    assert "2300 L/min · 250 kPa" in _texts(_root(_svg(design)))  # the pumps' rated head
+
+
+def test_an_undecided_rating_is_drawn_as_a_question_mark(doc: dict[str, Any]) -> None:
+    """Undecided stays undecided: the figure says `?`, it does not fill in a number."""
+    doc["blocks"]["cdu_loop"]["params"]["head_kpa"] = None
+    design = parse_design(doc)
     assert design.nodes["PMP-A-1"].get("rating_kpa") is None
-    texts = _texts(_root(_svg(design)))
+    texts = _texts(_root(to_svg(design)))
     assert "2300 L/min · ? kPa" in texts
     assert not any("0 kPa" in t for t in texts)
 
