@@ -10,56 +10,39 @@ deliver only as much as the tightest rating on it allows, so the leg's share is 
 `min(1, rating / carried)` of its most loaded element, and what the load gets is the sum over its
 legs — limited by the worse of the two sides. That is a rating-limited screening, not a hydraulic
 solution: it does not solve for pressure, so it cannot tell how a real loop would redistribute
-flow around the bottleneck. `pressure_drop` is the routine that answers that.
+flow around the bottleneck. Nothing here does — `pressure_drop` is a screening too, not a solver.
 """
 
 from __future__ import annotations
 
-from prescript.checks._util import accumulate, load_quantity, share_weights, targets
+from prescript.checks._util import Leg, accumulate, legs, load_quantity, targets
 from prescript.ir import LOAD_KINDS, SOURCE_KINDS, Assertion, Design
 from prescript.modes import ModeState
 from prescript.result import Result, Status, unrun
 
 METHOD = "method: share-weighted legs capped by their tightest rating, no pressure solution"
 
-Leg = tuple[float, tuple[str, ...]]
+Path = tuple[float, tuple[str, ...]]
 
 
-def _legs(
-    design: Design, state: ModeState, node_id: str, *, outward: bool, path: frozenset[str]
-) -> list[Leg]:
-    """Every leg from `node_id` to the CDU: its share of the flow and the elements it passes.
+def _elements(design: Design, legs_: list[Leg], *, outward: bool) -> list[Path]:
+    """The elements each leg passes, with its share of the flow.
 
-    `outward` walks the return side, which stops before the CDU, because the supply side is where
-    the CDU itself is charged — the same cut `accumulate` makes so nothing is counted twice.
+    The return side stops before the CDU, because the supply side is where the CDU itself is
+    charged — the same cut `accumulate` makes so nothing is counted twice.
     """
     if outward:
-        edges = [
-            e for e in state.outlets(design, node_id) if design.nodes[e.dst].kind not in LOAD_KINDS
+        return [
+            (w, tuple(e.dst for e in edges if design.nodes[e.dst].kind not in SOURCE_KINDS))
+            for w, edges in legs_
         ]
-        neighbours = [e.dst for e in edges]
-    else:
-        edges = [
-            e for e in state.feeds(design, node_id) if design.nodes[e.src].kind not in LOAD_KINDS
-        ]
-        neighbours = [e.src for e in edges]
-
-    legs: list[Leg] = []
-    for nid, weight in zip(neighbours, share_weights(edges, neighbours, path), strict=True):
-        if weight == 0.0:
-            continue
-        if design.nodes[nid].kind in SOURCE_KINDS:
-            legs.append((weight, () if outward else (nid,)))
-            continue
-        for share, elements in _legs(design, state, nid, outward=outward, path=path | {nid}):
-            legs.append((weight * share, (nid, *elements)))
-    return legs
+    return [(w, tuple(e.src for e in edges)) for w, edges in legs_]
 
 
-def _deliverable(legs: list[Leg], totals: dict[str, float], ratings: dict[str, float]) -> float:
+def _deliverable(paths: list[Path], totals: dict[str, float], ratings: dict[str, float]) -> float:
     """Fraction of the requirement these legs can deliver, each capped by its tightest rating."""
     delivered = 0.0
-    for weight, elements in legs:
+    for weight, elements in paths:
         caps = [min(1.0, ratings[e] / totals[e]) for e in elements if totals.get(e, 0.0) > 0.0]
         delivered += weight * min(caps, default=1.0)
     return delivered
@@ -114,12 +97,15 @@ def balance(design: Design, state: ModeState | None, a: Assertion) -> Result:
     for load in loads:
         if required[load.id] <= 0.0:  # a demand factor of 0: nothing to deliver, nothing short
             continue
-        start = frozenset({load.id})
         supply = _deliverable(
-            _legs(design, state, load.id, outward=False, path=start), totals, ratings
+            _elements(design, legs(design, state, load.id, outward=False), outward=False),
+            totals,
+            ratings,
         )
         back = _deliverable(
-            _legs(design, state, load.id, outward=True, path=start), totals, ratings
+            _elements(design, legs(design, state, load.id, outward=True), outward=True),
+            totals,
+            ratings,
         )
         available = required[load.id] * min(supply, back)
         shortfall = (available - required[load.id]) / required[load.id]
