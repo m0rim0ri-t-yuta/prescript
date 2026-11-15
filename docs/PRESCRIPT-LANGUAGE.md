@@ -37,12 +37,13 @@ Every flow calculation uses `cp_kj_kgk × density_kg_l` as the `rho · cp` of `Q
 `rack`, `rdhx`. **Every** kind must carry `provenance`.
 
 Attribute names carry units: `rating_kw`, `rating_lpm`, `rating_kpa`, `approach_k`, `heat_kw`,
-`delta_t_k`, `max_inlet_c`, `dn_mm`, `length_m`, `roughness_mm`, `dp_kpa`, `dp_lpm`, `volume_l`.
-An undecided value is `null`.
+`delta_t_k`, `max_inlet_c`, `return_min_c`, `return_max_c`, `dn_mm`, `length_m`, `roughness_mm`,
+`dp_kpa`, `dp_lpm`, `volume_l`. An undecided value is `null`.
 
 Loads (`rack`, `rdhx`): `class` (e.g. `it_liquid` | `it_air`), `heat_kw`, `delta_t_k`,
 `max_inlet_c`, `dual_fed: true`.
-CDUs: `rating_kw`, `rating_lpm`, `approach_k`, `side: A|B`.
+CDUs: `rating_kw`, `rating_lpm`, `approach_k`, `return_min_c` / `return_max_c` (the return
+temperature range the exchanger is selected for), `side: A|B`.
 Pumps: `rating_lpm`, `rating_kpa` (the rated head: differential pressure at `rating_lpm`),
 `standby_of: <id>`. A standby pump declares `state: standby`.
 Headers: `rating_lpm`, and as pipe `dn_mm` (taken as the bore), `length_m`, `roughness_mm`,

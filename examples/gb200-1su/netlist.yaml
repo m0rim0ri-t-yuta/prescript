@@ -29,15 +29,16 @@ fluids:
 blocks:
   cdu_loop:
     description: "One CDU with a duty and a standby pump, and its supply and return headers"
+    # Temperature: the exchanger's approach and the return range it is selected for.
     # Pressure: the pump's rated head, the exchanger's rated drop at its rated flow, and each
     # header as pipe (bore, run length, roughness, summed fitting K) for Darcy-Weisbach.
     # Inventory: `volume_l` per element; a header's comes from its bore and run, so it has none.
-    params: {rating_kw: 1500, rating_lpm: 2300, approach_k: 3, head_kpa: 250, cdu_dp_kpa: 50,
-             dn_mm: 150, header_m: 30, header_k: 5, roughness_mm: 0.045, pump_valve_kv: 600,
-             cdu_volume_l: 200, pump_volume_l: 10}
+    params: {rating_kw: 1500, rating_lpm: 2300, approach_k: 3, return_min_c: 25, return_max_c: 50,
+             head_kpa: 250, cdu_dp_kpa: 50, dn_mm: 150, header_m: 30, header_k: 5,
+             roughness_mm: 0.045, pump_valve_kv: 600, cdu_volume_l: 200, pump_volume_l: 10}
     provenance: "assumed (S-20): round numbers, no vendor data in this repository"
     expands_to:
-      - {id: "CDU-{s}", kind: cdu, rating_kw: "{rating_kw}", rating_lpm: "{rating_lpm}", approach_k: "{approach_k}", dp_kpa: "{cdu_dp_kpa}", dp_lpm: "{rating_lpm}", volume_l: "{cdu_volume_l}", side: "{s}", fluid: pg25}
+      - {id: "CDU-{s}", kind: cdu, rating_kw: "{rating_kw}", rating_lpm: "{rating_lpm}", approach_k: "{approach_k}", return_min_c: "{return_min_c}", return_max_c: "{return_max_c}", dp_kpa: "{cdu_dp_kpa}", dp_lpm: "{rating_lpm}", volume_l: "{cdu_volume_l}", side: "{s}", fluid: pg25}
       - {id: "PMP-{s}-1", kind: pump, rating_lpm: "{rating_lpm}", rating_kpa: "{head_kpa}", volume_l: "{pump_volume_l}"}
       - {id: "PMP-{s}-2", kind: pump, rating_lpm: "{rating_lpm}", rating_kpa: "{head_kpa}", volume_l: "{pump_volume_l}", state: standby, standby_of: "PMP-{s}-1"}
       - {id: "HDR-S-{s}", kind: header, rating_lpm: "{rating_lpm}", dn_mm: "{dn_mm}", length_m: "{header_m}", roughness_mm: "{roughness_mm}", k_fittings: "{header_k}", service: supply, fluid: pg25}

@@ -12,6 +12,7 @@ Status rules for every routine: `agent-config/rules/verification-semantics.md`.
 | `inlet_temp`   | `class`                                           | facility supply + CDU approach stays under each load's `max_inlet_c`   | no mode; no loads; the mode sets no `facility_supply_c`; any null input  |
 | `n_minus_1`    | `class`, `sweep` (kinds; default every non-load kind) | every load of `class` keeps a closed loop with any one swept element stopped | no mode; no loads of `class`; nothing of the swept kinds carries flow |
 | `balance`      | `class`, `tolerance_pct` (default 10)             | every load of `class` gets its required flow, short by no more than `tolerance_pct` | no mode; no loads of `class`; nothing circulating; any null rating or load input |
+| `return_temp`  | `kinds` (default `[cdu]`)                         | the mixed return at every running CDU stays within `return_min_c`–`return_max_c` | no mode; no CDUs; the mode sets no `facility_supply_c`; nothing circulating; any null input |
 | `pressure_drop` | `method` (`darcy_weisbach`), `limit` (default 1.0), `available_kpa?` | every load's loop drops no more than `limit` × the head of the pump on it (or `available_kpa`) | no mode; unknown method; nothing circulating; any null input, or a supply leg with no pump |
 | `ride_through` | `class`, `must_exceed_s` | every loop that carries the class holds it for longer than `must_exceed_s` | no mode; no loads of `class`; no `must_exceed_s`; the mode sets no `loop_start_c`; any null inventory or load input |
 | `completeness` | `kinds`                                           | every element of `kinds` has non-null `rating_*` (+ `kv_m3h` on valves) | no element of `kinds`                            |
@@ -68,6 +69,15 @@ over the whole header length, which over-states the drop at the far end of a mai
 one rated point, not a curve; parallel paths are not balanced against each other; one fluid, single
 phase, steady state. The method is named in every result.
 
+### How `return_temp` mixes
+
+Each load's outlet is its inlet — facility supply plus the approach of the CDU that serves it, the
+same stack-up as `inlet_temp` — plus its `delta_t_k`. The outlets are mixed in proportion to the
+flow each load sends back to each CDU, along the return legs and shares `accumulate` uses, so a rear
+door at a wider `dT` (and so less flow) pulls the mix less than a rack. A demand factor scales flow,
+not temperature rise, so in this model a heavier load does not warm the return; the facility
+temperature, the approach and each load's design `dT` do. Heat gained or lost along the pipes and
+bypass control are not modelled. A stopped CDU receives nothing and is not judged.
 ### How `ride_through` counts the inventory
 
 One lumped volume at one temperature, the heat sink gone and the pumps still turning:
@@ -89,6 +99,5 @@ every result.
 
 | Routine          | Intent                                                                   | Milestone |
 | ---------------- | ------------------------------------------------------------------------ | --------- |
-| `return_temp`    | Mixed return temperature at the CDU against its design range              | W2        |
 | `leak_isolation` | Every branch can be isolated without stopping a load that is still running | W3       |
 | `consistency`    | Netlist values match the spec table                                       | W3        |
