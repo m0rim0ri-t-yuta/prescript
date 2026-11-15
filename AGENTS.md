@@ -61,7 +61,8 @@ Non-obvious constraints only — everything else is discoverable from the repo
 - `src/prescript/modes.py` — per-mode state resolution, circulation and dead legs
 - `src/prescript/checks/` — one module per assertion routine; registry in `checks/__init__.py`;
   the flow/heat accumulation every sizing check shares lives in `checks/_util.py`
-- `src/prescript/cli.py` — `prescript verify` / `prescript elaborate`
+- `src/prescript/draw.py` — IR → loop diagram (SVG); it renders the netlist and verifies nothing
+- `src/prescript/cli.py` — `prescript verify` / `prescript elaborate` / `prescript draw`
 - `examples/gb200-1su/netlist.yaml` — the reference design
 
 ## Quick Start

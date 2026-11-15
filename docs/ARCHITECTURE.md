@@ -1,7 +1,7 @@
 # Architecture
 
 > Prescript: spec-as-code and verification for data-center liquid cooling.
-> Last updated: 2026-11-13 · grammar v0.2 · PoC
+> Last updated: 2026-11-15 · grammar v0.2 · PoC
 
 ## 1. Why this shape
 
@@ -33,6 +33,15 @@ netlist.yaml ──▶ loader ──▶ ir.Design ──▶ modes.resolve(mode) 
 Each stage consumes only the previous stage's output. Checks never read YAML; the report never
 re-runs checks.
 
+`draw` is the second consumer of the IR, beside `checks`:
+
+```
+ir.Design (+ modes.resolve(mode)) ──▶ draw.to_svg ──▶ loop diagram (SVG)
+```
+
+It renders what the netlist says — topology, the states of one mode, the ratings as written — and
+reports no pass or fail. An undecided rating is drawn as `?`, never as a number.
+
 ## 3. Modules
 
 | Module                 | Responsibility                                                          |
@@ -44,7 +53,8 @@ re-runs checks.
 | `prescript/checks/`    | One routine per module; `REGISTRY` + `PLANNED`; `_util.accumulate`      |
 | `prescript/engine.py`  | Assertion × mode loop, severity, coverage                               |
 | `prescript/report.py`  | Matrix + findings as text, Markdown, JSON                               |
-| `prescript/cli.py`     | `prescript verify`, `prescript elaborate`                               |
+| `prescript/draw.py`    | IR → loop diagram (SVG): columns from the CDU, return lanes             |
+| `prescript/cli.py`     | `prescript verify`, `prescript elaborate`, `prescript draw`             |
 
 ## 4. Design decisions
 

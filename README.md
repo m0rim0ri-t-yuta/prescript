@@ -36,6 +36,14 @@ PASS 25 · FAIL 0 · WARN 2 · UNRUN 6
 never reports `PASS`. Every `UNRUN` above is a routine that is not built yet; an assertion is not
 asked for in a mode where it could never mean anything.
 
+The same netlist as a picture — one operating mode's states on the loop:
+
+```bash
+uv run prescript draw examples/gb200-1su/netlist.yaml --mode maint-cdu-A -o loop.svg
+```
+
+`draw` renders; it does not verify. A rating the netlist leaves undecided is drawn as `?`.
+
 ## What it checks that a power tool would not
 
 A cooling loop is a loop. A rack that is supplied but whose return leg is isolated still cooks, and
@@ -54,6 +62,7 @@ headers, in the numbers.
 | SVA assertions           | `assertions:` — closed loop, dual path, loading, …  |
 | Functional coverage      | assertion × mode coverage                           |
 | Regression in CI         | `prescript verify` comment on every PR              |
+| Schematic view           | `prescript draw` — the netlist as a loop diagram    |
 
 ## Reference design
 

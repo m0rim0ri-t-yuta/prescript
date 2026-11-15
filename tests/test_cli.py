@@ -44,3 +44,23 @@ def test_netlist_error_exits_two(tmp_path: Path) -> None:
     bad.write_text(yaml.safe_dump({"prescript": "0.2", "nodes": [{"id": "X"}]}), encoding="utf-8")
     res = runner.invoke(app, ["verify", str(bad)])
     assert res.exit_code == 2
+
+
+def test_draw_writes_an_svg_file(tmp_path: Path) -> None:
+    out = tmp_path / "loop.svg"
+    res = runner.invoke(app, ["draw", str(REFERENCE), "--mode", "maint-cdu-A", "-o", str(out)])
+    assert res.exit_code == 0, res.output
+    svg = out.read_text(encoding="utf-8")
+    assert svg.startswith('<?xml version="1.0" encoding="UTF-8"?>')
+    assert "maint-cdu-A" in svg
+
+
+def test_draw_writes_svg_to_stdout() -> None:
+    res = runner.invoke(app, ["draw", str(REFERENCE)])
+    assert res.exit_code == 0, res.output
+    assert res.output.startswith('<?xml version="1.0" encoding="UTF-8"?>')
+
+
+def test_draw_unknown_mode_exits_two() -> None:
+    res = runner.invoke(app, ["draw", str(REFERENCE), "--mode", "no-such-mode"])
+    assert res.exit_code == 2
