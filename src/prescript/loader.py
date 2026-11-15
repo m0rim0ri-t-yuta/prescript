@@ -24,6 +24,7 @@ from prescript.ir import (
     Fluid,
     Mode,
     Node,
+    SpecTable,
 )
 
 SUPPORTED_GRAMMAR = {"0.2"}
@@ -123,6 +124,28 @@ def _to_fluid(name: str, raw: dict[str, Any]) -> Fluid:
         return Fluid(name=name, **raw)
     except ValidationError as exc:
         raise NetlistError(f"fluid {name}: {exc}") from exc
+
+
+def _to_spec(name: str, raw: dict[str, Any]) -> SpecTable:
+    """One transcribed sheet: `{provenance, rows: [{id, <field>: <value>, ...}]}`."""
+    if not isinstance(raw, dict):
+        raise NetlistError(f"spec table {name}: must be a mapping")
+    unknown = set(raw) - {"provenance", "rows"}
+    if unknown:
+        raise NetlistError(f"spec table {name}: unknown keys {sorted(unknown)}")
+    if not raw.get("provenance"):
+        raise NetlistError(f"spec table {name}: provenance is mandatory")
+    rows: dict[str, dict[str, Any]] = {}
+    for row in raw.get("rows") or []:
+        if not isinstance(row, dict) or "id" not in row:
+            raise NetlistError(f"spec table {name}: every row needs an id: {row}")
+        row_id = str(row["id"])
+        if row_id in rows:
+            raise NetlistError(f"spec table {name}: duplicate row id '{row_id}'")
+        rows[row_id] = {k: v for k, v in row.items() if k != "id"}
+    if not rows:
+        raise NetlistError(f"spec table {name}: no rows")
+    return SpecTable(name=name, rows=rows, provenance=str(raw["provenance"]))
 
 
 def _to_node(raw: dict[str, Any], origin: str | None) -> Node:
@@ -250,6 +273,7 @@ def parse_design(doc: dict[str, Any]) -> Design:
         raise NetlistError(f"unsupported grammar version prescript: {grammar}")
 
     fluids = {str(n): _to_fluid(str(n), body) for n, body in (doc.get("fluids") or {}).items()}
+    spec = {str(n): _to_spec(str(n), body) for n, body in (doc.get("spec") or {}).items()}
     raw_nodes, block_edges = _elaborate(doc.get("nodes") or [], doc.get("blocks") or {})
     nodes: dict[str, Node] = {}
     for raw, origin in raw_nodes:
@@ -283,6 +307,7 @@ def parse_design(doc: dict[str, Any]) -> Design:
             project=str(doc.get("project", "unnamed")),
             units=doc.get("units") or {},
             fluids=fluids,
+            spec=spec,
             nodes=nodes,
             edges=tuple(edges),
             modes=modes,

@@ -12,8 +12,11 @@ Status rules for every routine: `agent-config/rules/verification-semantics.md`.
 | `inlet_temp`   | `class`                                           | facility supply + CDU approach stays under each load's `max_inlet_c`   | no mode; no loads; the mode sets no `facility_supply_c`; any null input  |
 | `n_minus_1`    | `class`, `sweep` (kinds; default every non-load kind) | every load of `class` keeps a closed loop with any one swept element stopped | no mode; no loads of `class`; nothing of the swept kinds carries flow |
 | `balance`      | `class`, `tolerance_pct` (default 10)             | every load of `class` gets its required flow, short by no more than `tolerance_pct` | no mode; no loads of `class`; nothing circulating; any null rating or load input |
+| `return_temp`  | `kinds` (default `[cdu]`)                         | the mixed return at every running CDU stays within `return_min_c`–`return_max_c` | no mode; no CDUs; the mode sets no `facility_supply_c`; nothing circulating; any null input |
 | `pressure_drop` | `method` (`darcy_weisbach`), `limit` (default 1.0), `available_kpa?` | every load's loop drops no more than `limit` × the head of the pump on it (or `available_kpa`) | no mode; unknown method; nothing circulating; any null input, or a supply leg with no pump |
+| `ride_through` | `class`, `must_exceed_s` | every loop that carries the class holds it for longer than `must_exceed_s` | no mode; no loads of `class`; no `must_exceed_s`; the mode sets no `loop_start_c`; any null inventory or load input |
 | `completeness` | `kinds`                                           | every element of `kinds` has non-null `rating_*` (+ `kv_m3h` on valves) | no element of `kinds`                            |
+| `consistency`  | `against` (a `spec` table), `fields`              | every row of the table agrees with the netlist on every field | no table of that name; no `fields`; a cell undecided on either side (with no disagreement found) |
 | `coverage`     | —                                                 | every non-meta assertion × mode cell ran (not `UNRUN`)                 | nothing to cover                                  |
 
 ### How `loading` gets its numbers
@@ -67,11 +70,45 @@ over the whole header length, which over-states the drop at the far end of a mai
 one rated point, not a curve; parallel paths are not balanced against each other; one fluid, single
 phase, steady state. The method is named in every result.
 
+### How `return_temp` mixes
+
+Each load's outlet is its inlet — facility supply plus the approach of the CDU that serves it, the
+same stack-up as `inlet_temp` — plus its `delta_t_k`. The outlets are mixed in proportion to the
+flow each load sends back to each CDU, along the return legs and shares `accumulate` uses, so a rear
+door at a wider `dT` (and so less flow) pulls the mix less than a rack. A demand factor scales flow,
+not temperature rise, so in this model a heavier load does not warm the return; the facility
+temperature, the approach and each load's design `dT` do. Heat gained or lost along the pipes and
+bypass control are not modelled. A stopped CDU receives nothing and is not judged.
+### How `ride_through` counts the inventory
+
+One lumped volume at one temperature, the heat sink gone and the pumps still turning:
+
+| Term      | From                                                                                     |
+| --------- | ---------------------------------------------------------------------------------------- |
+| inventory | `volume_l` of every element hydraulically connected to the load through the valves this mode leaves open; a header's volume is its `dn_mm` bore over its `length_m` run |
+| heat      | `heat_kw` × the mode's demand factor for **every** load on that loop, whatever its class — they all warm the same water |
+| headroom  | the mode's `loop_start_c` up to the tightest `max_inlet_c` among the loads **of the class under test** |
+| time      | `V · rho · cp · ΔT / Q`, reported against `must_exceed_s`                                 |
+
+A shut valve splits the inventory, so an isolated branch is judged on what is left inside it. The
+metal mass of pipes, plates and exchangers is ignored, which under-states the time; heat lost to the
+hall is ignored, which over-states it. It is one temperature, not a profile, and it does not ask
+whether the pumps are on a UPS — it assumes only the heat rejection was lost. The method is named in
+every result.
+
+### How `consistency` reads a disagreement
+
+The `spec` tables are the sheets the design came from, transcribed (`docs/PRESCRIPT-LANGUAGE.md`).
+The routine walks the table, not the design: a row the netlist does not have is a disagreement, a
+node the table does not list is simply not its business. Numbers compare as numbers, anything else
+as text, and nothing is converted — a field name means the same unit on both sides.
+
+A cell that is `null` on either side is an unanswered question, not a disagreement, so it goes to
+`missing`. With nothing else to report that is `UNRUN`; next to a disagreement that is proven, the
+result stays `FAIL` and carries the uncomparable cells alongside the evidence.
+
 ## Planned (return `UNRUN: not implemented`)
 
 | Routine          | Intent                                                                   | Milestone |
 | ---------------- | ------------------------------------------------------------------------ | --------- |
-| `return_temp`    | Mixed return temperature at the CDU against its design range              | W2        |
-| `ride_through`   | Loop thermal mass vs the time the IT load can be carried without cooling  | W3        |
 | `leak_isolation` | Every branch can be isolated without stopping a load that is still running | W3       |
-| `consistency`    | Netlist values match the spec table                                       | W3        |

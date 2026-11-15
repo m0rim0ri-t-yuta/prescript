@@ -46,7 +46,7 @@ reports no pass or fail. An undecided rating is drawn as `?`, never as a number.
 
 | Module                 | Responsibility                                                          |
 | ---------------------- | ----------------------------------------------------------------------- |
-| `prescript/ir.py`      | Frozen IR types. Units in field names. `None` = undecided rating.       |
+| `prescript/ir.py`      | Frozen IR types: nodes, edges, modes, spec tables. `None` = undecided.  |
 | `prescript/loader.py`  | YAML 1.2-bool parsing, fluids, block elaboration, validation            |
 | `prescript/modes.py`   | Resolve overrides → equipment/valve states; circulation and dead legs   |
 | `prescript/result.py`  | Closed status set and the invariants a `Result` enforces at construction |
@@ -54,7 +54,8 @@ reports no pass or fail. An undecided rating is drawn as `?`, never as a number.
 | `prescript/engine.py`  | Assertion × mode loop, severity, coverage                               |
 | `prescript/report.py`  | Matrix + findings as text, Markdown, JSON                               |
 | `prescript/draw.py`    | IR → loop diagram (SVG): columns from the CDU, return lanes             |
-| `prescript/cli.py`     | `prescript verify`, `prescript elaborate`, `prescript draw`             |
+| `prescript/sim/`       | Plant model, PID, UVM-style testbench and its report (`SIMULATION.md`)   |
+| `prescript/cli.py`     | `verify`, `elaborate`, `draw`, `sim`                                    |
 
 ## 4. Design decisions
 
@@ -67,8 +68,10 @@ reports no pass or fail. An undecided rating is drawn as `?`, never as a number.
 3. **Topology first, physics later.** v0.2 answers "does it circulate, does every element stay
    inside its rating, does every rack get its share, and can the pump push it?" with the
    steady-state sensible-heat balance `Q = V · rho · cp · dT`, a rating-limited flow balance and a
-   1-D pressure-drop screening — each method named in its results. Solving the network, the pump
-   curve and transient behaviour come later, and only with a defensible method. Industry
+   1-D pressure-drop screening — each method named in its results. Solving the network and the
+   pump curve come later, and only with a defensible method. Transient behaviour is a separate
+   stage, `prescript sim` (`SIMULATION.md`): a lumped plant model driven by a UVM-style testbench,
+   after the static checks and never instead of them. Industry
    simulators are export targets, not something Prescript re-implements.
 4. **The facility loop is a boundary condition.** The scope is the technology cooling loop (TCS)
    on the rack side of the CDU, because that is what a retrofit changes. What the facility water

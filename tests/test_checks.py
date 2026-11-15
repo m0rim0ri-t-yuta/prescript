@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pytest
@@ -10,6 +11,7 @@ from prescript import engine
 from prescript.checks.balance import METHOD as BALANCE_METHOD
 from prescript.checks.balance import balance
 from prescript.checks.completeness import completeness
+from prescript.checks.consistency import consistency
 from prescript.checks.dual_path import dual_path
 from prescript.checks.inlet_temp import inlet_temp
 from prescript.checks.loading import loading
@@ -17,6 +19,10 @@ from prescript.checks.loop_closed import loop_closed
 from prescript.checks.n_minus_1 import n_minus_1
 from prescript.checks.pressure_drop import METHOD as PRESSURE_METHOD
 from prescript.checks.pressure_drop import _Inputs, _pipe_kpa, pressure_drop
+from prescript.checks.return_temp import METHOD as RETURN_METHOD
+from prescript.checks.return_temp import return_temp
+from prescript.checks.ride_through import METHOD as RIDE_METHOD
+from prescript.checks.ride_through import ride_through
 from prescript.ir import Assertion, Design, Fluid, Node
 from prescript.loader import parse_design
 from prescript.modes import resolve
@@ -370,6 +376,209 @@ def test_pressure_drop_unrun_without_mode(design: Design) -> None:
     assert pressure_drop(design, None, _a("pressure_drop")).status is Status.UNRUN
 
 
+# --- return_temp ----------------------------------------------------------------
+
+
+def test_return_temp_pass_in_normal(design: Design) -> None:
+    """20 C facility + 3 K approach + 10 K across every load: 33 C back at both CDUs."""
+    r = return_temp(design, _state(design), _a("return_temp", kinds=["cdu"]))
+    assert r.status is Status.PASS
+    assert "2 cdus see a mixed return inside their range, warmest 33.0 C" in r.detail
+    assert RETURN_METHOD in r.detail  # a screening method says so (verification-semantics §6)
+
+
+def test_return_temp_fails_above_the_range(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"]["return_max_c"] = 40
+    d = parse_design(doc)
+    r = return_temp(d, _state(d, "summer-peak"), _a("return_temp"))
+    assert r.status is Status.FAIL
+    assert r.offending == (
+        "CDU-A mixed return 45.0 C > 40.0 C",
+        "CDU-B mixed return 45.0 C > 40.0 C",
+    )
+
+
+def test_return_temp_fails_below_the_range(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"]["return_min_c"] = 35
+    d = parse_design(doc)
+    r = return_temp(d, _state(d), _a("return_temp"))
+    assert r.status is Status.FAIL
+    assert r.offending[0] == "CDU-A mixed return 33.0 C < 35.0 C"
+
+
+@pytest.mark.parametrize(("ceiling", "status"), [(45.4, Status.FAIL), (45.5, Status.PASS)])
+def test_return_temp_weights_by_flow(doc: dict[str, Any], ceiling: float, status: Status) -> None:
+    """RDHX at dT 20 K sends half the flow at 55 C; mixed with the racks' 45 C that is 45.48 C.
+
+    A plain average of the two outlets would be 50 C, and of the nine loads 46.1 C.
+    """
+    rdhx = doc["nodes"][-1]
+    assert rdhx["id"] == "RDHX-01"
+    rdhx["delta_t_k"] = 20
+    doc["blocks"]["cdu_loop"]["params"]["return_max_c"] = ceiling
+    d = parse_design(doc)
+    assert return_temp(d, _state(d, "summer-peak"), _a("return_temp")).status is status
+
+
+def test_return_temp_judges_only_the_cdu_that_runs(design: Design) -> None:
+    r = return_temp(design, _state(design, "maint-cdu-A"), _a("return_temp"))
+    assert r.status is Status.PASS
+    assert r.subjects == ("CDU-B",)
+
+
+def test_return_temp_unrun_when_the_range_is_null(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"]["return_max_c"] = None
+    d = parse_design(doc)
+    r = return_temp(d, _state(d), _a("return_temp"))
+    assert r.status is Status.UNRUN
+    assert r.missing == ("CDU-A.return_max_c", "CDU-B.return_max_c")
+
+
+def test_return_temp_unrun_without_the_facility_condition(doc: dict[str, Any]) -> None:
+    doc["modes"]["normal"]["conditions"] = {}
+    d = parse_design(doc)
+    r = return_temp(d, _state(d), _a("return_temp"))
+    assert r.status is Status.UNRUN
+    assert r.missing == ("mode normal.conditions.facility_supply_c",)
+
+
+def test_return_temp_unrun_when_nothing_circulates(design: Design) -> None:
+    r = return_temp(design, _state(design, "facility-loss"), _a("return_temp"))
+    assert r.status is Status.UNRUN
+
+
+def test_return_temp_unrun_without_mode(design: Design) -> None:
+    assert return_temp(design, None, _a("return_temp")).status is Status.UNRUN
+
+
+# --- ride_through ---------------------------------------------------------------
+
+
+def _ride(design: Design, **args: Any) -> Result:
+    a = _a("ride_through", must_exceed_s=60, **args)
+    return ride_through(design, _state(design, "facility-loss"), a)
+
+
+def _seconds(r: Result) -> int:
+    """The time a ride_through result quotes, for comparing two designs."""
+    match = re.search(r"for (\d+) s", r.detail)
+    assert match, r.detail
+    return int(match.group(1))
+
+
+def test_ride_through_pass_in_facility_loss(design: Design) -> None:
+    r = _ride(design)
+    assert r.status is Status.PASS
+    assert r.subjects == ("RACK-01",)  # one connected inventory serves the whole hall
+    assert RIDE_METHOD in r.detail
+    assert _seconds(r) > 60
+
+
+def test_ride_through_fails_on_a_loop_with_too_little_water(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"].update(cdu_volume_l=1, pump_volume_l=1, header_m=0.1)
+    doc["blocks"]["rack_gb200_nvl72"]["params"].update(manifold_volume_l=1, rack_volume_l=1)
+    r = _ride(parse_design(doc))
+    assert r.status is Status.FAIL
+    assert r.offending and r.offending[0].startswith("RACK-01's loop: ")
+    assert "s < 60 s" in r.offending[0]
+
+
+def test_ride_through_unrun_without_the_loop_starting_temperature(doc: dict[str, Any]) -> None:
+    del doc["modes"]["facility-loss"]["conditions"]["loop_start_c"]
+    r = _ride(parse_design(doc))
+    assert r.status is Status.UNRUN
+    assert r.missing == ("mode facility-loss.conditions.loop_start_c",)
+
+
+def test_ride_through_unrun_when_an_inventory_is_null(doc: dict[str, Any]) -> None:
+    doc["blocks"]["rack_gb200_nvl72"]["params"]["rack_volume_l"] = None
+    r = _ride(parse_design(doc))
+    assert r.status is Status.UNRUN
+    assert "RACK-01.volume_l" in r.missing
+
+
+def test_ride_through_unrun_without_a_time_to_beat(design: Design) -> None:
+    a = Assertion(id="T", check="ride_through", args={}, modes=("facility-loss",))
+    r = ride_through(design, _state(design, "facility-loss"), a)
+    assert r.status is Status.UNRUN
+    assert r.missing == ("T.must_exceed_s",)
+
+
+def test_ride_through_takes_every_class_heat_but_its_own_limit(doc: dict[str, Any]) -> None:
+    """The rear doors heat the same water; the limit still comes from the class under test."""
+    quiet = _ride(parse_design(doc))
+    doc["modes"]["facility-loss"]["demand"]["it_air"] = 1.0
+    loud = _ride(parse_design(doc))
+    assert "RACK-01 at 45 C" in loud.detail  # not the rear door's 40 C
+    assert _seconds(loud) < _seconds(quiet)
+
+
+def test_ride_through_stops_at_a_shut_valve(doc: dict[str, Any], design: Design) -> None:
+    """A rack isolated on both sides rides on what is left inside its own branch, and no more."""
+    doc["modes"]["facility-loss"]["overrides"].update(
+        {"V-SA-01": "closed", "V-SB-01": "closed", "V-RA-01": "closed", "V-RB-01": "closed"}
+    )
+    r = _ride(parse_design(doc))
+    assert r.subjects == ("RACK-01", "RACK-02")  # the isolated rack, and the rest of the hall
+    assert _seconds(r) < _seconds(_ride(design))
+
+
+# --- consistency ----------------------------------------------------------------
+
+
+def _spec_check(design: Design, against: str = "02_Loads") -> Result:
+    a = _a("consistency", against=against, fields=["heat_kw", "delta_t_k", "max_inlet_c"])
+    return consistency(design, None, a)
+
+
+def test_consistency_pass_on_the_reference(design: Design) -> None:
+    r = _spec_check(design)
+    assert r.status is Status.PASS
+    assert len(r.subjects) == 9
+    assert "02_Loads" in r.detail
+
+
+def test_consistency_catches_a_block_parameter_edit(doc: dict[str, Any]) -> None:
+    """The W4 demo: one parameter moves eight racks, and only the schedule notices."""
+    doc["blocks"]["rack_gb200_nvl72"]["params"]["heat_kw"] = 200
+    r = _spec_check(parse_design(doc))
+    assert r.status is Status.FAIL
+    assert len(r.offending) == 8
+    assert r.offending[0] == "RACK-01.heat_kw: netlist 200, 02_Loads 150"
+
+
+def test_consistency_reports_a_row_the_netlist_does_not_have(doc: dict[str, Any]) -> None:
+    doc["spec"]["02_Loads"]["rows"].append(
+        {"id": "RACK-09", "heat_kw": 150, "delta_t_k": 10, "max_inlet_c": 45}
+    )
+    r = _spec_check(parse_design(doc))
+    assert r.status is Status.FAIL
+    assert r.offending == ("RACK-09: in 02_Loads, not in the netlist",)
+
+
+def test_consistency_unrun_when_a_cell_is_undecided(doc: dict[str, Any]) -> None:
+    doc["spec"]["02_Loads"]["rows"][0]["heat_kw"] = None
+    r = _spec_check(parse_design(doc))
+    assert r.status is Status.UNRUN
+    assert r.missing == ("spec 02_Loads.RACK-01.heat_kw",)
+
+
+def test_consistency_unrun_without_the_table(design: Design) -> None:
+    r = _spec_check(design, against="99_Nope")
+    assert r.status is Status.UNRUN
+    assert r.missing == ("spec.99_Nope",)
+
+
+def test_consistency_still_fails_when_another_cell_cannot_be_compared(doc: dict[str, Any]) -> None:
+    """A proven disagreement is not hidden by an unanswered question; both are reported."""
+    doc["blocks"]["rack_gb200_nvl72"]["params"]["heat_kw"] = 200
+    doc["spec"]["02_Loads"]["rows"][1]["max_inlet_c"] = None
+    r = _spec_check(parse_design(doc))
+    assert r.status is Status.FAIL
+    assert r.missing == ("spec 02_Loads.RACK-02.max_inlet_c",)
+    assert any(o.startswith("RACK-02.heat_kw") for o in r.offending)
+
+
 # --- completeness: null never passes -------------------------------------------
 
 
@@ -393,10 +602,11 @@ def test_completeness_unrun_for_unknown_kind(design: Design) -> None:
 # --- engine-level invariants -----------------------------------------------------
 
 
-def test_not_implemented_never_passes(design: Design) -> None:
-    results = engine.run(design)
-    c13 = [r for r in results if r.assertion == "C-13"]  # consistency, still a W3 routine
-    assert c13 and all(r.status is Status.UNRUN for r in c13)
+def test_not_implemented_never_passes(doc: dict[str, Any]) -> None:
+    """Asserted against a routine that is still planned, so implementing one cannot break it."""
+    doc["assertions"].append({"id": "Z-00", "check": "leak_isolation", "modes": ["normal"]})
+    r = _result(engine.run(parse_design(doc)), "Z-00", "normal")
+    assert r.status is Status.UNRUN and r.detail == "not implemented"
 
 
 def test_unknown_check_is_unrun(doc: dict[str, Any]) -> None:
@@ -419,9 +629,13 @@ def test_reference_design_has_no_fail(design: Design) -> None:
 
 
 def test_every_unrun_in_the_reference_is_an_unbuilt_routine(design: Design) -> None:
-    """An assertion is not asked for in a mode where it could never leave UNRUN (#15)."""
+    """An assertion is not asked for in a mode where it could never leave UNRUN (#15).
+
+    The reference names only built routines now, so this list is empty. The assertion still
+    guards the property: an UNRUN that appears here for any other reason is a bug.
+    """
     unrun = [r for r in engine.run(design) if r.status is Status.UNRUN]
-    assert unrun and all("not implemented" in r.detail for r in unrun)
+    assert all("not implemented" in r.detail for r in unrun)
 
 
 def test_fail_without_evidence_is_impossible() -> None:

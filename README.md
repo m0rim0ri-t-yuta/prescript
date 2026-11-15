@@ -29,7 +29,7 @@ C-08  n_minus_1      PASS
 C-09  pressure_drop  PASS                                                        PASS
 C-10  balance        PASS                                                        PASS
 ...
-PASS 28 · FAIL 0 · WARN 1 · UNRUN 4
+PASS 31 · FAIL 0 · WARN 1 · UNRUN 1
 ```
 
 `UNRUN` is deliberate: a check that touches an undecided (`null`) rating, or that is not built yet,
@@ -63,6 +63,7 @@ headers, in the numbers.
 | Functional coverage      | assertion × mode coverage                           |
 | Regression in CI         | `prescript verify` comment on every PR              |
 | Schematic view           | `prescript draw` — the netlist as a loop diagram    |
+| UVM testbench            | `prescript sim` — random load steps on a plant model |
 
 ## Reference design
 
@@ -73,7 +74,8 @@ count and IT power follow NVIDIA's public reference architecture; every cooling 
 ## Docs
 
 [Architecture](docs/ARCHITECTURE.md) · [Netlist language](docs/PRESCRIPT-LANGUAGE.md) ·
-[Checks](docs/CHECKS.md) · [Development](docs/DEVELOPMENT.md) · [Roadmap](docs/ROADMAP.md)
+[Checks](docs/CHECKS.md) · [Simulation](docs/SIMULATION.md) · [Development](docs/DEVELOPMENT.md) ·
+[Roadmap](docs/ROADMAP.md)
 
 Contributors and coding agents: start at [`AGENTS.md`](AGENTS.md).
 

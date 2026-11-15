@@ -29,15 +29,18 @@ fluids:
 blocks:
   cdu_loop:
     description: "One CDU with a duty and a standby pump, and its supply and return headers"
+    # Temperature: the exchanger's approach and the return range it is selected for.
     # Pressure: the pump's rated head, the exchanger's rated drop at its rated flow, and each
     # header as pipe (bore, run length, roughness, summed fitting K) for Darcy-Weisbach.
-    params: {rating_kw: 1500, rating_lpm: 2300, approach_k: 3, head_kpa: 250, cdu_dp_kpa: 50,
-             dn_mm: 150, header_m: 30, header_k: 5, roughness_mm: 0.045, pump_valve_kv: 600}
+    # Inventory: `volume_l` per element; a header's comes from its bore and run, so it has none.
+    params: {rating_kw: 1500, rating_lpm: 2300, approach_k: 3, return_min_c: 25, return_max_c: 50,
+             head_kpa: 250, cdu_dp_kpa: 50, dn_mm: 150, header_m: 30, header_k: 5,
+             roughness_mm: 0.045, pump_valve_kv: 600, cdu_volume_l: 200, pump_volume_l: 10}
     provenance: "assumed (S-20): round numbers, no vendor data in this repository"
     expands_to:
-      - {id: "CDU-{s}", kind: cdu, rating_kw: "{rating_kw}", rating_lpm: "{rating_lpm}", approach_k: "{approach_k}", dp_kpa: "{cdu_dp_kpa}", dp_lpm: "{rating_lpm}", side: "{s}", fluid: pg25}
-      - {id: "PMP-{s}-1", kind: pump, rating_lpm: "{rating_lpm}", rating_kpa: "{head_kpa}"}
-      - {id: "PMP-{s}-2", kind: pump, rating_lpm: "{rating_lpm}", rating_kpa: "{head_kpa}", state: standby, standby_of: "PMP-{s}-1"}
+      - {id: "CDU-{s}", kind: cdu, rating_kw: "{rating_kw}", rating_lpm: "{rating_lpm}", approach_k: "{approach_k}", return_min_c: "{return_min_c}", return_max_c: "{return_max_c}", dp_kpa: "{cdu_dp_kpa}", dp_lpm: "{rating_lpm}", volume_l: "{cdu_volume_l}", side: "{s}", fluid: pg25}
+      - {id: "PMP-{s}-1", kind: pump, rating_lpm: "{rating_lpm}", rating_kpa: "{head_kpa}", volume_l: "{pump_volume_l}"}
+      - {id: "PMP-{s}-2", kind: pump, rating_lpm: "{rating_lpm}", rating_kpa: "{head_kpa}", volume_l: "{pump_volume_l}", state: standby, standby_of: "PMP-{s}-1"}
       - {id: "HDR-S-{s}", kind: header, rating_lpm: "{rating_lpm}", dn_mm: "{dn_mm}", length_m: "{header_m}", roughness_mm: "{roughness_mm}", k_fittings: "{header_k}", service: supply, fluid: pg25}
       - {id: "HDR-R-{s}", kind: header, rating_lpm: "{rating_lpm}", dn_mm: "{dn_mm}", length_m: "{header_m}", roughness_mm: "{roughness_mm}", k_fittings: "{header_k}", service: return, fluid: pg25}
     edges:
@@ -52,12 +55,13 @@ blocks:
     # Pressure: the manifold's rated drop at its rated flow, the rack's (cold plates lumped) at a
     # stated flow, and the Kv of each branch valve.
     params: {heat_kw: 150, delta_t_k: 10, max_inlet_c: 45, manifold_lpm: 300, manifold_dp_kpa: 30,
-             rack_dp_kpa: 100, rack_dp_lpm: 230, branch_kv: 60}
+             rack_dp_kpa: 100, rack_dp_lpm: 230, branch_kv: 60,
+             manifold_volume_l: 20, rack_volume_l: 60}
     provenance: "NVIDIA RA RA11338001: ~1.2 MW IT across 8 racks. Cooling figures assumed (S-21)."
     expands_to:
-      - {id: "MAN-A-{n}", kind: manifold, rating_lpm: "{manifold_lpm}", dp_kpa: "{manifold_dp_kpa}", dp_lpm: "{manifold_lpm}", ports: 8, side: A, fluid: pg25}
-      - {id: "MAN-B-{n}", kind: manifold, rating_lpm: "{manifold_lpm}", dp_kpa: "{manifold_dp_kpa}", dp_lpm: "{manifold_lpm}", ports: 8, side: B, fluid: pg25}
-      - {id: "RACK-{n}", kind: rack, class: it_liquid, heat_kw: "{heat_kw}", delta_t_k: "{delta_t_k}", max_inlet_c: "{max_inlet_c}", dp_kpa: "{rack_dp_kpa}", dp_lpm: "{rack_dp_lpm}", dual_fed: true, fluid: pg25}
+      - {id: "MAN-A-{n}", kind: manifold, rating_lpm: "{manifold_lpm}", dp_kpa: "{manifold_dp_kpa}", dp_lpm: "{manifold_lpm}", volume_l: "{manifold_volume_l}", ports: 8, side: A, fluid: pg25}
+      - {id: "MAN-B-{n}", kind: manifold, rating_lpm: "{manifold_lpm}", dp_kpa: "{manifold_dp_kpa}", dp_lpm: "{manifold_lpm}", volume_l: "{manifold_volume_l}", ports: 8, side: B, fluid: pg25}
+      - {id: "RACK-{n}", kind: rack, class: it_liquid, heat_kw: "{heat_kw}", delta_t_k: "{delta_t_k}", max_inlet_c: "{max_inlet_c}", dp_kpa: "{rack_dp_kpa}", dp_lpm: "{rack_dp_lpm}", volume_l: "{rack_volume_l}", dual_fed: true, fluid: pg25}
     edges:
       - {from: "HDR-S-A", to: "MAN-A-{n}", via: {id: "V-SA-{n}", kind: valve, kv_m3h: "{branch_kv}", provenance: "assumed: round number"}}
       - {from: "HDR-S-B", to: "MAN-B-{n}", via: {id: "V-SB-{n}", kind: valve, kv_m3h: "{branch_kv}", provenance: "assumed: round number"}}
@@ -83,7 +87,7 @@ nodes:
   - {use: rack_gb200_nvl72, n: "08"}
 
   # Residual air-cooled load of the hall (switching, PSU losses) on rear-door exchangers (S-22)
-  - {id: RDHX-01, kind: rdhx, class: it_air, heat_kw: 120, delta_t_k: 10, max_inlet_c: 40, dp_kpa: 50, dp_lpm: 180, dual_fed: true, fluid: pg25, provenance: "assumed: 10% of IT power stays in air; drop a round number"}
+  - {id: RDHX-01, kind: rdhx, class: it_air, heat_kw: 120, delta_t_k: 10, max_inlet_c: 40, dp_kpa: 50, dp_lpm: 180, volume_l: 40, dual_fed: true, fluid: pg25, provenance: "assumed: 10% of IT power stays in air; drop and volume round numbers"}
 
 # ---------------------------------------------------------------- edges -----
 edges:
@@ -128,8 +132,29 @@ modes:
   facility-loss:
     overrides: {CDU-A: off, CDU-B: off}
     demand: {it_liquid: 0.1, it_air: 0.0}
-    conditions: {facility_supply_c: 45}
+    # loop_start_c: the water in the loop when the heat sink goes, not the facility side. Assumed
+    # as the mean of this design's own normal operating pair: 23 C to the racks (20 + 3 K approach)
+    # and 33 C back (+ 10 K across a rack).
+    conditions: {facility_supply_c: 45, loop_start_c: 28}
     note: "Facility water lost and both CDUs trip; how long until the GPUs must throttle"
+
+# ------------------------------------------------------------------ spec ----
+# The sheets this design was taken from, transcribed. `consistency` proves the elaborated netlist
+# still agrees with them: the racks come out of a block, so one parameter edit moves all eight at
+# once and only the schedule notices.
+spec:
+  02_Loads:
+    provenance: "NVIDIA RA RA11338001 (S-21/S-22): the load schedule this netlist was built from; cooling figures assumed"
+    rows:
+      - {id: RACK-01, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-02, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-03, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-04, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-05, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-06, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-07, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-08, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RDHX-01, heat_kw: 120, delta_t_k: 10, max_inlet_c: 40}
 
 # ------------------------------------------------------------ assertions ----
 # `check` names a built-in verifier routine; unimplemented ones report UNRUN.
@@ -152,6 +177,6 @@ assertions:
   - {id: C-10, check: balance,       args: {class: it_liquid, tolerance_pct: 10},               modes: [normal, valve-shut-01]}
   - {id: C-11, check: ride_through,  args: {class: it_liquid, must_exceed_s: 60},               modes: [facility-loss], severity: warn}
   - {id: C-12, check: return_temp,   args: {kinds: [cdu]},                                      modes: [normal, summer-peak]}
-  - {id: C-13, check: consistency,   args: {against: "02_Loads", fields: [heat_kw]},            modes: [static]}
+  - {id: C-13, check: consistency,   args: {against: "02_Loads", fields: [heat_kw, delta_t_k, max_inlet_c]}, modes: [static]}
   - {id: C-14, check: completeness,  args: {kinds: [cdu, pump, header, manifold, valve]},       modes: [static], severity: warn}
   - {id: C-15, check: coverage,      args: {modes: all, assertions: [C-01, C-05]},              modes: [meta], severity: warn}

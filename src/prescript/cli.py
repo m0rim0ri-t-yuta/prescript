@@ -1,4 +1,4 @@
-"""`prescript` command line."""
+"""`prescript` command line: `verify`, `elaborate`, `draw` and `sim`."""
 
 from __future__ import annotations
 
@@ -13,6 +13,9 @@ from prescript.draw import to_svg
 from prescript.ir import Design
 from prescript.loader import NetlistError, load_design
 from prescript.result import Status
+from prescript.sim import poc
+from prescript.sim import report as sim_report
+from prescript.sim.uvm import Constraints, StepSequence
 
 app = typer.Typer(
     no_args_is_help=True, add_completion=False, help="Spec-as-code for liquid cooling."
@@ -89,6 +92,34 @@ def draw(
         return
     out.write_text(svg, encoding="utf-8")
     typer.echo(f"wrote {out}", err=True)
+
+
+@app.command()
+def sim(
+    seed: Annotated[int, typer.Option(help="Seed for the constrained-random sequence.")] = 1,
+    runs: Annotated[int, typer.Option(min=1, help="Scenarios to run.")] = 20,
+    max_heat_kw: Annotated[
+        float | None,
+        typer.Option(help="Widen (or narrow) the heat envelope's upper bound, kW."),
+    ] = None,
+    verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False,
+) -> None:
+    """Run the Phase 1 testbench (one exchanger, one PID valve) on random load steps."""
+    envelope = poc.ENVELOPE
+    if max_heat_kw is not None:
+        try:
+            envelope = Constraints(
+                heat_kw=(envelope.heat_kw[0], max_heat_kw),
+                facility_c=envelope.facility_c,
+                step_at_s=envelope.step_at_s,
+            )
+        except ValueError as exc:
+            typer.echo(f"sim error: {exc}", err=True)
+            raise typer.Exit(2) from exc
+    done = [poc.BENCH.run(item) for item in StepSequence(envelope, seed, runs)]
+    typer.echo(sim_report.to_text(done, seed, envelope, verbose=verbose))
+    failed = any(r.status is Status.FAIL for run in done for r in run.results)
+    raise typer.Exit(1 if failed else 0)
 
 
 if __name__ == "__main__":
