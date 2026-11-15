@@ -73,8 +73,8 @@ step "2 racks 150->200 kW" "$work/02-refresh.yaml" 1 show-findings
 # The fix: a larger CDU, larger mains and larger rack manifolds.
 edit "$work/02-refresh.yaml" "$work/03-upsized.yaml" \
   's/rating_kw: 1500, rating_lpm: 2300/rating_kw: 1800, rating_lpm: 2800/' \
-  's/dn_mm: 150}/dn_mm: 200}/' \
-  's/manifold_lpm: 300}/manifold_lpm: 350}/'
+  's/dn_mm: 150,/dn_mm: 200,/' \
+  's/manifold_lpm: 300,/manifold_lpm: 350,/'
 step "3 loop upsized" "$work/03-upsized.yaml" 0
 
 echo
