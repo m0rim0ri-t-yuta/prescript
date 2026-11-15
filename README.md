@@ -54,6 +54,7 @@ headers, in the numbers.
 | SVA assertions           | `assertions:` — closed loop, dual path, loading, …  |
 | Functional coverage      | assertion × mode coverage                           |
 | Regression in CI         | `prescript verify` comment on every PR              |
+| Revision diff            | `prescript diff` — what an edit really changed      |
 
 ## Reference design
 

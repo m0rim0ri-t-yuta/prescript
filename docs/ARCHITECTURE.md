@@ -33,6 +33,11 @@ netlist.yaml ──▶ loader ──▶ ir.Design ──▶ modes.resolve(mode) 
 Each stage consumes only the previous stage's output. Checks never read YAML; the report never
 re-runs checks.
 
+`diff` is a second consumer of the IR, beside `checks`: two elaborated designs in, the list of
+differences out. It compares after elaboration, which is why one edited block parameter reads as
+the eight racks it moved, and it reports facts — whether a change breaks an assertion is `verify`'s
+answer.
+
 ## 3. Modules
 
 | Module                 | Responsibility                                                          |
@@ -44,7 +49,8 @@ re-runs checks.
 | `prescript/checks/`    | One routine per module; `REGISTRY` + `PLANNED`; `_util.accumulate`      |
 | `prescript/engine.py`  | Assertion × mode loop, severity, coverage                               |
 | `prescript/report.py`  | Matrix + findings as text, Markdown, JSON                               |
-| `prescript/cli.py`     | `prescript verify`, `prescript elaborate`                               |
+| `prescript/diff.py`    | Two elaborated designs → a change list; text, Markdown, JSON            |
+| `prescript/cli.py`     | `prescript verify`, `prescript elaborate`, `prescript diff`             |
 
 ## 4. Design decisions
 
