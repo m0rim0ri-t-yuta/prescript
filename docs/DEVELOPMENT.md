@@ -18,6 +18,8 @@ For Issue work use `./scripts/worktree-create.sh <id> <slug> [type]` instead —
 | `uv run prescript verify -f md …` / `-f json`                  | Markdown for PR comments / JSON       |
 | `uv run prescript verify --strict …`                           | Also fail on `UNRUN`                  |
 | `uv run prescript elaborate …`                                 | Dump the elaborated IR                |
+| `uv run prescript draw … -o loop.svg`                          | Loop diagram as SVG                   |
+| `uv run prescript draw … --mode maint-cdu-A`                   | …with one mode's states on it         |
 | `uv run prescript sim [--seed N --runs K]`                | Dynamic testbench (`SIMULATION.md`)   |
 | `uv run pytest`                                           | Tests                                 |
 | `uv run ruff check . && uv run ruff format --check .`     | Lint + format                         |
