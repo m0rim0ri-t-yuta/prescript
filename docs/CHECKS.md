@@ -13,6 +13,7 @@ Status rules for every routine: `agent-config/rules/verification-semantics.md`.
 | `n_minus_1`    | `class`, `sweep` (kinds; default every non-load kind) | every load of `class` keeps a closed loop with any one swept element stopped | no mode; no loads of `class`; nothing of the swept kinds carries flow |
 | `balance`      | `class`, `tolerance_pct` (default 10)             | every load of `class` gets its required flow, short by no more than `tolerance_pct` | no mode; no loads of `class`; nothing circulating; any null rating or load input |
 | `pressure_drop` | `method` (`darcy_weisbach`), `limit` (default 1.0), `available_kpa?` | every load's loop drops no more than `limit` × the head of the pump on it (or `available_kpa`) | no mode; unknown method; nothing circulating; any null input, or a supply leg with no pump |
+| `ride_through` | `class`, `must_exceed_s` | every loop that carries the class holds it for longer than `must_exceed_s` | no mode; no loads of `class`; no `must_exceed_s`; the mode sets no `loop_start_c`; any null inventory or load input |
 | `completeness` | `kinds`                                           | every element of `kinds` has non-null `rating_*` (+ `kv_m3h` on valves) | no element of `kinds`                            |
 | `coverage`     | —                                                 | every non-meta assertion × mode cell ran (not `UNRUN`)                 | nothing to cover                                  |
 
@@ -67,11 +68,27 @@ over the whole header length, which over-states the drop at the far end of a mai
 one rated point, not a curve; parallel paths are not balanced against each other; one fluid, single
 phase, steady state. The method is named in every result.
 
+### How `ride_through` counts the inventory
+
+One lumped volume at one temperature, the heat sink gone and the pumps still turning:
+
+| Term      | From                                                                                     |
+| --------- | ---------------------------------------------------------------------------------------- |
+| inventory | `volume_l` of every element hydraulically connected to the load through the valves this mode leaves open; a header's volume is its `dn_mm` bore over its `length_m` run |
+| heat      | `heat_kw` × the mode's demand factor for **every** load on that loop, whatever its class — they all warm the same water |
+| headroom  | the mode's `loop_start_c` up to the tightest `max_inlet_c` among the loads **of the class under test** |
+| time      | `V · rho · cp · ΔT / Q`, reported against `must_exceed_s`                                 |
+
+A shut valve splits the inventory, so an isolated branch is judged on what is left inside it. The
+metal mass of pipes, plates and exchangers is ignored, which under-states the time; heat lost to the
+hall is ignored, which over-states it. It is one temperature, not a profile, and it does not ask
+whether the pumps are on a UPS — it assumes only the heat rejection was lost. The method is named in
+every result.
+
 ## Planned (return `UNRUN: not implemented`)
 
 | Routine          | Intent                                                                   | Milestone |
 | ---------------- | ------------------------------------------------------------------------ | --------- |
 | `return_temp`    | Mixed return temperature at the CDU against its design range              | W2        |
-| `ride_through`   | Loop thermal mass vs the time the IT load can be carried without cooling  | W3        |
 | `leak_isolation` | Every branch can be isolated without stopping a load that is still running | W3       |
 | `consistency`    | Netlist values match the spec table                                       | W3        |

@@ -37,8 +37,8 @@ Every flow calculation uses `cp_kj_kgk × density_kg_l` as the `rho · cp` of `Q
 `rack`, `rdhx`. **Every** kind must carry `provenance`.
 
 Attribute names carry units: `rating_kw`, `rating_lpm`, `rating_kpa`, `approach_k`, `heat_kw`,
-`delta_t_k`, `max_inlet_c`, `dn_mm`, `length_m`, `roughness_mm`, `dp_kpa`, `dp_lpm`. An undecided
-value is `null`.
+`delta_t_k`, `max_inlet_c`, `dn_mm`, `length_m`, `roughness_mm`, `dp_kpa`, `dp_lpm`, `volume_l`.
+An undecided value is `null`.
 
 Loads (`rack`, `rdhx`): `class` (e.g. `it_liquid` | `it_air`), `heat_kw`, `delta_t_k`,
 `max_inlet_c`, `dual_fed: true`.
@@ -51,6 +51,10 @@ Manifolds: `rating_lpm`, `side: A|B`. Elsewhere the side is read from a whole `-
 
 Pressure drop of equipment (CDU exchanger, manifold, rack, rdhx) is a rated point: `dp_kpa` at a flow
 of `dp_lpm`. At another flow it scales with the square of the flow.
+
+Coolant inventory, which `ride_through` counts, is `volume_l` on every element. A header states no
+`volume_l`: its volume is its `dn_mm` bore over its `length_m` run, so it is geometry, not a second
+number to keep in step.
 
 Default state is `on`. Equipment states: `on`, `off`, `standby`. `off` and `standby` are dead: they
 block flow.
@@ -94,7 +98,10 @@ modes:
 
 `overrides` set equipment and valve states; the target must exist. `demand` is a load factor per
 load class, applied to `heat_kw`. `conditions` carry the boundary the facility side imposes —
-`facility_supply_c` is what `inlet_temp` needs, and a mode that omits it makes that check `UNRUN`.
+`facility_supply_c` is what `inlet_temp` and `return_temp` need, and a mode that omits it makes
+those checks `UNRUN`. `loop_start_c` is the temperature of the water already in the loop at the
+moment a mode's heat sink is lost — the facility side has failed in such a mode, so its supply
+temperature cannot stand in for it; `ride_through` needs it.
 
 ## Assertions
 
