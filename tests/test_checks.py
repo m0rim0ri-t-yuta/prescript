@@ -17,6 +17,8 @@ from prescript.checks.loop_closed import loop_closed
 from prescript.checks.n_minus_1 import n_minus_1
 from prescript.checks.pressure_drop import METHOD as PRESSURE_METHOD
 from prescript.checks.pressure_drop import _Inputs, _pipe_kpa, pressure_drop
+from prescript.checks.return_temp import METHOD as RETURN_METHOD
+from prescript.checks.return_temp import return_temp
 from prescript.ir import Assertion, Design, Fluid, Node
 from prescript.loader import parse_design
 from prescript.modes import resolve
@@ -368,6 +370,81 @@ def test_pressure_drop_unrun_when_nothing_circulates(design: Design) -> None:
 
 def test_pressure_drop_unrun_without_mode(design: Design) -> None:
     assert pressure_drop(design, None, _a("pressure_drop")).status is Status.UNRUN
+
+
+# --- return_temp ----------------------------------------------------------------
+
+
+def test_return_temp_pass_in_normal(design: Design) -> None:
+    """20 C facility + 3 K approach + 10 K across every load: 33 C back at both CDUs."""
+    r = return_temp(design, _state(design), _a("return_temp", kinds=["cdu"]))
+    assert r.status is Status.PASS
+    assert "2 cdus see a mixed return inside their range, warmest 33.0 C" in r.detail
+    assert RETURN_METHOD in r.detail  # a screening method says so (verification-semantics §6)
+
+
+def test_return_temp_fails_above_the_range(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"]["return_max_c"] = 40
+    d = parse_design(doc)
+    r = return_temp(d, _state(d, "summer-peak"), _a("return_temp"))
+    assert r.status is Status.FAIL
+    assert r.offending == (
+        "CDU-A mixed return 45.0 C > 40.0 C",
+        "CDU-B mixed return 45.0 C > 40.0 C",
+    )
+
+
+def test_return_temp_fails_below_the_range(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"]["return_min_c"] = 35
+    d = parse_design(doc)
+    r = return_temp(d, _state(d), _a("return_temp"))
+    assert r.status is Status.FAIL
+    assert r.offending[0] == "CDU-A mixed return 33.0 C < 35.0 C"
+
+
+@pytest.mark.parametrize(("ceiling", "status"), [(45.4, Status.FAIL), (45.5, Status.PASS)])
+def test_return_temp_weights_by_flow(doc: dict[str, Any], ceiling: float, status: Status) -> None:
+    """RDHX at dT 20 K sends half the flow at 55 C; mixed with the racks' 45 C that is 45.48 C.
+
+    A plain average of the two outlets would be 50 C, and of the nine loads 46.1 C.
+    """
+    rdhx = doc["nodes"][-1]
+    assert rdhx["id"] == "RDHX-01"
+    rdhx["delta_t_k"] = 20
+    doc["blocks"]["cdu_loop"]["params"]["return_max_c"] = ceiling
+    d = parse_design(doc)
+    assert return_temp(d, _state(d, "summer-peak"), _a("return_temp")).status is status
+
+
+def test_return_temp_judges_only_the_cdu_that_runs(design: Design) -> None:
+    r = return_temp(design, _state(design, "maint-cdu-A"), _a("return_temp"))
+    assert r.status is Status.PASS
+    assert r.subjects == ("CDU-B",)
+
+
+def test_return_temp_unrun_when_the_range_is_null(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"]["return_max_c"] = None
+    d = parse_design(doc)
+    r = return_temp(d, _state(d), _a("return_temp"))
+    assert r.status is Status.UNRUN
+    assert r.missing == ("CDU-A.return_max_c", "CDU-B.return_max_c")
+
+
+def test_return_temp_unrun_without_the_facility_condition(doc: dict[str, Any]) -> None:
+    doc["modes"]["normal"]["conditions"] = {}
+    d = parse_design(doc)
+    r = return_temp(d, _state(d), _a("return_temp"))
+    assert r.status is Status.UNRUN
+    assert r.missing == ("mode normal.conditions.facility_supply_c",)
+
+
+def test_return_temp_unrun_when_nothing_circulates(design: Design) -> None:
+    r = return_temp(design, _state(design, "facility-loss"), _a("return_temp"))
+    assert r.status is Status.UNRUN
+
+
+def test_return_temp_unrun_without_mode(design: Design) -> None:
+    assert return_temp(design, None, _a("return_temp")).status is Status.UNRUN
 
 
 # --- completeness: null never passes -------------------------------------------
