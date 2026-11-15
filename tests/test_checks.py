@@ -15,7 +15,9 @@ from prescript.checks.inlet_temp import inlet_temp
 from prescript.checks.loading import loading
 from prescript.checks.loop_closed import loop_closed
 from prescript.checks.n_minus_1 import n_minus_1
-from prescript.ir import Assertion, Design
+from prescript.checks.pressure_drop import METHOD as PRESSURE_METHOD
+from prescript.checks.pressure_drop import _Inputs, _pipe_kpa, pressure_drop
+from prescript.ir import Assertion, Design, Fluid, Node
 from prescript.loader import parse_design
 from prescript.modes import resolve
 from prescript.result import Result, Status
@@ -292,10 +294,88 @@ def test_balance_unrun_for_empty_class(design: Design) -> None:
     assert r.status is Status.UNRUN
 
 
+# --- pressure_drop --------------------------------------------------------------
+
+
+def test_pressure_drop_header_matches_darcy_weisbach_by_hand() -> None:
+    """998.6 L/min in DN150 PG25: v 0.942 m/s, Re 72756, f 0.0205; (f*30/0.15 + 5) * rho v^2/2."""
+    header = Node(
+        id="H",
+        kind="header",
+        attrs={"dn_mm": 150, "length_m": 30, "roughness_mm": 0.045, "k_fittings": 5},
+    )
+    fluid = Fluid(name="pg25", cp_kj_kgk=3.85, density_kg_l=1.03, viscosity_mpas=2.0)
+    assert _pipe_kpa(header, 998.6, fluid, _Inputs()) == pytest.approx(4.16, abs=0.01)
+
+
+def test_pressure_drop_pass_in_normal(design: Design) -> None:
+    """RACK-01: 20.2 kPa up a supply leg, 97.4 across the rack, 5.5 down a return: 123/250."""
+    r = pressure_drop(design, _state(design), _a("pressure_drop"))
+    assert r.status is Status.PASS
+    assert r.detail.startswith("9 loops within the available head, worst 49%")
+    assert PRESSURE_METHOD in r.detail  # a screening method says so (verification-semantics §6)
+
+
+def test_pressure_drop_fails_when_the_headers_are_too_narrow(doc: dict[str, Any]) -> None:
+    """The bore now matters: DN80 headers cost the pump more head than it has."""
+    doc["blocks"]["cdu_loop"]["params"]["dn_mm"] = 80
+    d = parse_design(doc)
+    r = pressure_drop(d, _state(d), _a("pressure_drop"))
+    assert r.status is Status.FAIL
+    assert r.offending[0] == "RACK-01 via PMP-A-1: 256/250 kPa (102%)"
+
+
+def test_pressure_drop_fails_after_a_rack_refresh(doc: dict[str, Any]) -> None:
+    """The roadmap demo: at 200 kW the rack whose A branch is shut pushes all of it through B."""
+    doc["blocks"]["rack_gb200_nvl72"]["params"]["heat_kw"] = 200
+    d = parse_design(doc)
+    r = pressure_drop(d, _state(d, "valve-shut-01"), _a("pressure_drop"))
+    assert r.status is Status.FAIL
+    assert r.offending == ("RACK-01 via PMP-B-1: 253/250 kPa (101%)",)
+
+
+def test_pressure_drop_available_kpa_overrides_the_pump(design: Design) -> None:
+    r = pressure_drop(design, _state(design), _a("pressure_drop", available_kpa=100))
+    assert r.status is Status.FAIL
+    assert r.offending[0] == "RACK-01 via available_kpa: 123/100 kPa (123%)"
+
+
+def test_pressure_drop_unrun_when_the_pump_head_is_null(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"]["head_kpa"] = None
+    d = parse_design(doc)
+    r = pressure_drop(d, _state(d), _a("pressure_drop"))
+    assert r.status is Status.UNRUN
+    assert "PMP-A-1.rating_kpa" in r.missing
+
+
+def test_pressure_drop_unrun_without_viscosity(doc: dict[str, Any]) -> None:
+    doc["fluids"]["pg25"]["viscosity_mpas"] = None
+    d = parse_design(doc)
+    r = pressure_drop(d, _state(d), _a("pressure_drop"))
+    assert r.status is Status.UNRUN
+    assert r.missing == ("fluid pg25.viscosity_mpas",)
+
+
+def test_pressure_drop_unrun_for_an_unknown_method(design: Design) -> None:
+    r = pressure_drop(design, _state(design), _a("pressure_drop", method="hazen_williams"))
+    assert r.status is Status.UNRUN
+
+
+def test_pressure_drop_unrun_when_nothing_circulates(design: Design) -> None:
+    r = pressure_drop(design, _state(design, "facility-loss"), _a("pressure_drop"))
+    assert r.status is Status.UNRUN
+
+
+def test_pressure_drop_unrun_without_mode(design: Design) -> None:
+    assert pressure_drop(design, None, _a("pressure_drop")).status is Status.UNRUN
+
+
 # --- completeness: null never passes -------------------------------------------
 
 
-def test_completeness_reports_null_ratings(design: Design) -> None:
+def test_completeness_reports_null_ratings(doc: dict[str, Any]) -> None:
+    doc["blocks"]["rack_gb200_nvl72"]["params"]["branch_kv"] = None
+    design = parse_design(doc)
     r = completeness(design, None, _a("completeness", kinds=["valve"]))
     assert r.status is Status.FAIL
     assert "V-SA-01.kv_m3h" in r.offending
@@ -325,8 +405,9 @@ def test_unknown_check_is_unrun(doc: dict[str, Any]) -> None:
     assert r.status is Status.UNRUN and "unknown check" in r.detail
 
 
-def test_severity_warn_downgrades_fail_only(design: Design) -> None:
-    results = engine.run(design)
+def test_severity_warn_downgrades_fail_only(doc: dict[str, Any]) -> None:
+    doc["blocks"]["rack_gb200_nvl72"]["params"]["branch_kv"] = None  # C-14 now has nulls to find
+    results = engine.run(parse_design(doc))
     assert _result(results, "C-14", "static").status is Status.WARN
     assert _result(results, "C-15", "meta").status is Status.WARN
 

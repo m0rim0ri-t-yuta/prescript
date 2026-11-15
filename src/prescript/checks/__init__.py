@@ -16,6 +16,7 @@ from prescript.checks.inlet_temp import inlet_temp
 from prescript.checks.loading import loading
 from prescript.checks.loop_closed import loop_closed
 from prescript.checks.n_minus_1 import n_minus_1
+from prescript.checks.pressure_drop import pressure_drop
 from prescript.ir import Assertion, Design
 from prescript.modes import ModeState
 from prescript.result import Result
@@ -30,12 +31,12 @@ REGISTRY: dict[str, Check] = {
     "loading": loading,
     "loop_closed": loop_closed,
     "n_minus_1": n_minus_1,
+    "pressure_drop": pressure_drop,
 }
 
 # Named in the reference design but not built yet. They return UNRUN, never PASS.
 PLANNED: frozenset[str] = frozenset(
     {
-        "pressure_drop",
         "ride_through",
         "return_temp",
         "leak_isolation",

@@ -49,10 +49,12 @@ Non-obvious constraints only — everything else is discoverable from the repo
 - **Public data only**: everything under `examples/` comes from public reference designs, standards
   or explicit assumptions (`agent-config/rules/public-data.md`).
 - **Grammar SSOT** is `docs/PRESCRIPT-LANGUAGE.md`; the loader implements it. Change both in one PR.
-- **No physics we cannot defend**: pressure drop, flow balance between racks and transient
-  behaviour stay `UNRUN` (or simplified with the method named in the result) until a validated
-  method exists. v0.2 goes no further than the steady-state sensible-heat balance
-  `Q = V * rho * cp * dT`. Industry simulators are integration targets, not things we re-implement.
+- **No physics we cannot defend**: anything beyond a named screening method stays `UNRUN`, and a
+  screening names its method in the result. v0.2 goes as far as the steady-state sensible-heat
+  balance `Q = V * rho * cp * dT`, a rating-limited flow balance, and a 1-D pressure-drop screening
+  (Darcy-Weisbach headers, rated drops, Kv valves, against the pump's rated head). It does not solve
+  the network, the pump curve or transients. Industry simulators are integration targets, not
+  things we re-implement.
 
 ## Key Paths
 

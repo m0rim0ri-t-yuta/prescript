@@ -12,6 +12,7 @@ Status rules for every routine: `agent-config/rules/verification-semantics.md`.
 | `inlet_temp`   | `class`                                           | facility supply + CDU approach stays under each load's `max_inlet_c`   | no mode; no loads; the mode sets no `facility_supply_c`; any null input  |
 | `n_minus_1`    | `class`, `sweep` (kinds; default every non-load kind) | every load of `class` keeps a closed loop with any one swept element stopped | no mode; no loads of `class`; nothing of the swept kinds carries flow |
 | `balance`      | `class`, `tolerance_pct` (default 10)             | every load of `class` gets its required flow, short by no more than `tolerance_pct` | no mode; no loads of `class`; nothing circulating; any null rating or load input |
+| `pressure_drop` | `method` (`darcy_weisbach`), `limit` (default 1.0), `available_kpa?` | every load's loop drops no more than `limit` × the head of the pump on it (or `available_kpa`) | no mode; unknown method; nothing circulating; any null input, or a supply leg with no pump |
 | `completeness` | `kinds`                                           | every element of `kinds` has non-null `rating_*` (+ `kv_m3h` on valves) | no element of `kinds`                            |
 | `coverage`     | —                                                 | every non-meta assertion × mode cell ran (not `UNRUN`)                 | nothing to cover                                  |
 
@@ -25,7 +26,7 @@ through another load are not traversed, and a dead leg carries nothing.
 
 This is a steady-state balance, not a hydraulic solution: it says how much has to pass through an
 element, not whether each load gets its share (`balance`) or whether the pump can push it there
-(`pressure_drop`, not built yet).
+(`pressure_drop`).
 
 ### What `n_minus_1` sweeps
 
@@ -46,13 +47,30 @@ sum over its legs, limited by the worse of the two sides. The method is named in
 
 This is a rating-limited screening, not a hydraulic solution. It never delivers more than the
 requirement, so it only catches shortfalls, and it cannot say how a real loop would redistribute
-flow around a bottleneck — that needs the pressure solution `pressure_drop` will give.
+flow around a bottleneck — that needs a network solution, and `pressure_drop` is a screening too.
+
+### How `pressure_drop` adds up a loop
+
+A load's loop is one of its supply legs, the load, and the worst of its return legs, each element at
+the flow `accumulate` gives it in this mode (every circulating load counted):
+
+| Element                              | Drop                                                           | Inputs                                                   |
+| ------------------------------------ | -------------------------------------------------------------- | -------------------------------------------------------- |
+| header (pipe)                        | Darcy-Weisbach `(f·L/D + ΣK)·rho·v²/2`, f by Swamee-Jain (64/Re below Re 2300) | `dn_mm` (taken as the bore), `length_m`, `roughness_mm`, `k_fittings`; fluid `density_kg_l`, `viscosity_mpas` |
+| CDU exchanger, manifold, rack, RDHX  | rated drop scaled by flow squared, `dp_kpa · (Q / dp_lpm)²`    | `dp_kpa`, `dp_lpm`                                       |
+| valve                                | `100 · SG · (Q / Kv)²` kPa, Q in m³/h                          | `kv_m3h`; SG from the fluid's `density_kg_l`             |
+| pump                                 | adds its rated head, `rating_kpa`, at any flow                 | `rating_kpa`                                             |
+
+Each supply leg is compared with the head of the pump on it; the result names the worst leg of each
+load (`RACK-01 via PMP-B-1: 253/250 kPa (101%)`). It is a screening: the whole header flow is taken
+over the whole header length, which over-states the drop at the far end of a main; the pump gives
+one rated point, not a curve; parallel paths are not balanced against each other; one fluid, single
+phase, steady state. The method is named in every result.
 
 ## Planned (return `UNRUN: not implemented`)
 
 | Routine          | Intent                                                                   | Milestone |
 | ---------------- | ------------------------------------------------------------------------ | --------- |
-| `pressure_drop`  | 1-D pipe network against the pump curve, method named in the result       | W2        |
 | `return_temp`    | Mixed return temperature at the CDU against its design range              | W2        |
 | `ride_through`   | Loop thermal mass vs the time the IT load can be carried without cooling  | W3        |
 | `leak_isolation` | Every branch can be isolated without stopping a load that is still running | W3       |
