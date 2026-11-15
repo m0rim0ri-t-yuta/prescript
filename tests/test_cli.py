@@ -17,8 +17,20 @@ def test_verify_reference_exits_zero() -> None:
     assert "GB200-1SU-DLC-POC" in res.output
 
 
-def test_verify_strict_fails_on_unrun() -> None:
-    assert runner.invoke(app, ["verify", "--strict", str(REFERENCE)]).exit_code == 1
+def test_verify_strict_fails_on_unrun(tmp_path: Path) -> None:
+    """`--strict` exits 1 on any UNRUN (verification-semantics.md 7).
+
+    The reference no longer carries one — every routine it names is built — so the case is made
+    with an assertion that names an unbuilt routine.
+    """
+    path = tmp_path / "unrun.yaml"
+    path.write_text(
+        REFERENCE.read_text(encoding="utf-8")
+        + "  - {id: C-99, check: leak_isolation, args: {}, modes: [normal]}\n",
+        encoding="utf-8",
+    )
+    assert runner.invoke(app, ["verify", str(path)]).exit_code == 0
+    assert runner.invoke(app, ["verify", "--strict", str(path)]).exit_code == 1
 
 
 def test_verify_markdown_for_pr_comments() -> None:
