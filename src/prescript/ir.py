@@ -43,11 +43,12 @@ class _Model(BaseModel):
 
 
 class Fluid(_Model):
-    """Heat-carrying properties of a named fluid. `None` where the spec has not decided."""
+    """Properties of a named fluid at loop temperature. `None` where the spec has not decided."""
 
     name: str
     cp_kj_kgk: float | None = None
     density_kg_l: float | None = None
+    viscosity_mpas: float | None = None  # dynamic viscosity; only pressure drop needs it
     provenance: str | None = None
 
     def volumetric_heat_kj_lk(self) -> float | None:

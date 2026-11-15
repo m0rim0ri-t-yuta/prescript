@@ -49,12 +49,14 @@ Non-obvious constraints only — everything else is discoverable from the repo
 - **Public data only**: everything under `examples/` comes from public reference designs, standards
   or explicit assumptions (`agent-config/rules/public-data.md`).
 - **Grammar SSOT** is `docs/PRESCRIPT-LANGUAGE.md`; the loader implements it. Change both in one PR.
-- **No physics we cannot defend**: a result that rests on a model names the method in `detail`
-  and is never presented as a study result. The static checks go no further than the steady-state
-  sensible-heat balance `Q = V * rho * cp * dT` (and the screening methods each check names).
-  Transient behaviour runs only in `prescript sim`, on the lumped model `docs/SIMULATION.md`
-  describes; anything that model cannot represent (water hammer, for one) stays `UNRUN`.
-  Industry simulators are integration targets, not things we re-implement.
+- **No physics we cannot defend**: anything beyond a named method stays `UNRUN`, and every result
+  that rests on a model names its method and is never presented as a study result. The static
+  checks go as far as the steady-state sensible-heat balance `Q = V * rho * cp * dT`, a
+  rating-limited flow balance, and a 1-D pressure-drop screening (Darcy-Weisbach headers, rated
+  drops, Kv valves, against the pump's rated head); they do not solve the network or the pump
+  curve. Transient behaviour runs only in `prescript sim`, on the lumped model `docs/SIMULATION.md`
+  describes; anything that model cannot represent (water hammer, for one) stays `UNRUN`. Industry
+  simulators are integration targets, not things we re-implement.
 
 ## Key Paths
 

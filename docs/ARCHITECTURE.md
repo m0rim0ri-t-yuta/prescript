@@ -55,11 +55,13 @@ re-runs checks.
 2. **A loop, not a tree.** Power flows from a source to a load; coolant has to come back. Edges
    point the way the fluid travels, so a design is a set of cycles, and a supply path whose return
    leg is isolated fails `loop_closed` rather than quietly passing.
-3. **Topology first, physics later.** v0.2 answers "does it circulate, and does every element stay
-   inside its rating?" using the steady-state sensible-heat balance `Q = V · rho · cp · dT`.
-   Pressure drop and flow balance between racks come with a named, defensible method. Transient
-   behaviour is a separate stage, `prescript sim` (`SIMULATION.md`): a lumped plant model driven
-   by a UVM-style testbench, after the static checks and never instead of them. Industry
+3. **Topology first, physics later.** v0.2 answers "does it circulate, does every element stay
+   inside its rating, does every rack get its share, and can the pump push it?" with the
+   steady-state sensible-heat balance `Q = V · rho · cp · dT`, a rating-limited flow balance and a
+   1-D pressure-drop screening — each method named in its results. Solving the network and the
+   pump curve come later, and only with a defensible method. Transient behaviour is a separate
+   stage, `prescript sim` (`SIMULATION.md`): a lumped plant model driven by a UVM-style testbench,
+   after the static checks and never instead of them. Industry
    simulators are export targets, not something Prescript re-implements.
 4. **The facility loop is a boundary condition.** The scope is the technology cooling loop (TCS)
    on the rack side of the CDU, because that is what a retrofit changes. What the facility water

@@ -116,7 +116,7 @@ def _elaborate(
 def _to_fluid(name: str, raw: dict[str, Any]) -> Fluid:
     if not raw.get("provenance"):
         raise NetlistError(f"fluid {name}: provenance is mandatory")
-    unknown = set(raw) - {"cp_kj_kgk", "density_kg_l", "provenance"}
+    unknown = set(raw) - {"cp_kj_kgk", "density_kg_l", "viscosity_mpas", "provenance"}
     if unknown:
         raise NetlistError(f"fluid {name}: unknown keys {sorted(unknown)}")
     try:

@@ -26,10 +26,10 @@ C-03  loop_closed            PASS         PASS
 C-05  loading        PASS    PASS         PASS         PASS         PASS         PASS
 C-07  inlet_temp     PASS                                           PASS
 C-08  n_minus_1      PASS
-C-09  pressure_drop  UNRUN                                                       UNRUN
+C-09  pressure_drop  PASS                                                        PASS
 C-10  balance        PASS                                                        PASS
 ...
-PASS 25 · FAIL 0 · WARN 2 · UNRUN 6
+PASS 28 · FAIL 0 · WARN 1 · UNRUN 4
 ```
 
 `UNRUN` is deliberate: a check that touches an undecided (`null`) rating, or that is not built yet,
