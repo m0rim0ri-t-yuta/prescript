@@ -102,3 +102,7 @@ def test_unsupported_grammar_version(doc: dict[str, Any]) -> None:
     doc["prescript"] = 9.9
     with pytest.raises(NetlistError, match="unsupported grammar"):
         parse_design(doc)
+
+
+def test_fluid_viscosity_is_read(design: Design) -> None:
+    assert design.fluids["pg25"].viscosity_mpas == 2.0

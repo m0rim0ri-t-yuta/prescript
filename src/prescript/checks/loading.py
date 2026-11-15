@@ -3,7 +3,7 @@
 Flow and heat are accumulated from the loads around the loop that serves them
 (`_util.accumulate`). This is a steady-state sensible-heat balance, not a hydraulic solution:
 whether each load gets its share is `balance`, and whether the pump can push it is
-`pressure_drop` (not built yet).
+`pressure_drop`.
 """
 
 from __future__ import annotations

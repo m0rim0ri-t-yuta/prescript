@@ -103,7 +103,7 @@ def load_quantity(
 def share_weights(edges: list[Edge], neighbours: list[str], path: frozenset[str]) -> list[float]:
     """Normalised share of the quantity arriving at this node for each branch; 0.0 to skip.
 
-    Shared so that `accumulate` and `balance` split a branch the same way.
+    Shared so that `accumulate` and `legs` split a branch the same way.
     """
     weights = [
         0.0 if n in path else (1.0 if e.share is None else float(e.share))
@@ -113,6 +113,48 @@ def share_weights(edges: list[Edge], neighbours: list[str], path: frozenset[str]
     if total <= 0:
         return [0.0] * len(edges)
     return [w / total for w in weights]
+
+
+Leg = tuple[float, tuple[Edge, ...]]
+
+
+def legs(
+    design: Design,
+    state: ModeState,
+    node_id: str,
+    *,
+    outward: bool,
+    path: frozenset[str] | None = None,
+) -> list[Leg]:
+    """Every leg from `node_id` to the CDU that closes its loop, with its share of the flow.
+
+    Inward walks up the supply side (edges in reverse), outward walks down the return side. A leg
+    never runs through another load, and each branch is split by `share_weights`, so a leg's share
+    is exactly the fraction `accumulate` charges along it. Edges are listed from `node_id` outwards.
+    """
+    seen = path if path is not None else frozenset({node_id})
+    if outward:
+        edges = [
+            e for e in state.outlets(design, node_id) if design.nodes[e.dst].kind not in LOAD_KINDS
+        ]
+        neighbours = [e.dst for e in edges]
+    else:
+        edges = [
+            e for e in state.feeds(design, node_id) if design.nodes[e.src].kind not in LOAD_KINDS
+        ]
+        neighbours = [e.src for e in edges]
+
+    found: list[Leg] = []
+    weights = share_weights(edges, neighbours, seen)
+    for edge, nid, weight in zip(edges, neighbours, weights, strict=True):
+        if weight == 0.0:
+            continue
+        if design.nodes[nid].kind in SOURCE_KINDS:
+            found.append((weight, (edge,)))
+            continue
+        for share, tail in legs(design, state, nid, outward=outward, path=seen | {nid}):
+            found.append((weight * share, (edge, *tail)))
+    return found
 
 
 def _charge_supply(
