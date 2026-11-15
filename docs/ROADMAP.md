@@ -30,11 +30,26 @@ marked `assumed` with a round number.
 
 ## Demo script (W4)
 
-1. PR: refresh the racks 150 kW → 200 kW (GPU upgrade in an existing hall).
-2. CI comment goes red: in `maint-cdu-A` the surviving CDU carries 2602 of 2300 L/min and all eight
-   B-side manifolds sit at 101% of their rating.
-3. Second commit: larger CDU and manifolds, or a third CDU.
-4. CI comment goes green; the diff shows exactly what changed and why.
+Every figure below is measured on the reference design, not estimated.
+
+1. PR: refresh the racks 150 kW → 200 kW (GPU upgrade in an existing hall) — one `heat_kw` in
+   `blocks.rack_gb200_nvl72.params`.
+2. CI comment goes red — `PASS 17 · FAIL 5 · WARN 2 · UNRUN 9`, and `prescript verify` exits 1.
+   Five cells fail, not one: both maintenance modes go down symmetrically, the hall is caught on
+   the heat basis as well as the flow basis, and the one isolated branch is caught on its own.
+
+   | cell                 | finding                                                                                                                                  |
+   | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+   | `C-05@maint-cdu-A`   | 12 of 26 elements over rating: CDU-B, PMP-B-1, HDR-S-B and HDR-R-B at 2602/2300 L/min (113%); MAN-B-01…08 at 303/300 L/min (101%)         |
+   | `C-05@maint-cdu-B`   | the same, mirrored onto side A                                                                                                           |
+   | `C-05@valve-shut-01` | MAN-B-01 at 303/300 L/min (101%) — the rack whose A branch is shut takes its whole flow through B                                         |
+   | `C-06@maint-cdu-A`   | CDU-B at 1720/1500 kW (115%) — the surviving unit is short of heat capacity, not just flow                                                |
+   | `C-06@maint-cdu-B`   | CDU-A at 1720/1500 kW (115%)                                                                                                             |
+
+3. Second commit: `cdu_loop` to `rating_kw: 1800`, `rating_lpm: 2800`, `dn_mm: 200` and
+   `manifold_lpm: 350` (or a third CDU).
+4. CI comment goes green — `PASS 22 · FAIL 0 · WARN 2 · UNRUN 9`, worst 93% on flow and 96% on
+   heat in `maint-cdu-A`: sized, not oversized. The diff shows exactly what changed and why.
 
 ## Out of scope
 
