@@ -133,6 +133,24 @@ modes:
     conditions: {facility_supply_c: 45}
     note: "Facility water lost and both CDUs trip; how long until the GPUs must throttle"
 
+# ------------------------------------------------------------------ spec ----
+# The sheets this design was taken from, transcribed. `consistency` proves the elaborated netlist
+# still agrees with them: the racks come out of a block, so one parameter edit moves all eight at
+# once and only the schedule notices.
+spec:
+  02_Loads:
+    provenance: "NVIDIA RA RA11338001 (S-21/S-22): the load schedule this netlist was built from; cooling figures assumed"
+    rows:
+      - {id: RACK-01, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-02, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-03, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-04, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-05, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-06, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-07, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-08, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RDHX-01, heat_kw: 120, delta_t_k: 10, max_inlet_c: 40}
+
 # ------------------------------------------------------------ assertions ----
 # `check` names a built-in verifier routine; unimplemented ones report UNRUN.
 assertions:
@@ -154,6 +172,6 @@ assertions:
   - {id: C-10, check: balance,       args: {class: it_liquid, tolerance_pct: 10},               modes: [normal, valve-shut-01]}
   - {id: C-11, check: ride_through,  args: {class: it_liquid, must_exceed_s: 60},               modes: [facility-loss], severity: warn}
   - {id: C-12, check: return_temp,   args: {kinds: [cdu]},                                      modes: [normal, summer-peak]}
-  - {id: C-13, check: consistency,   args: {against: "02_Loads", fields: [heat_kw]},            modes: [static]}
+  - {id: C-13, check: consistency,   args: {against: "02_Loads", fields: [heat_kw, delta_t_k, max_inlet_c]}, modes: [static]}
   - {id: C-14, check: completeness,  args: {kinds: [cdu, pump, header, manifold, valve]},       modes: [static], severity: warn}
   - {id: C-15, check: coverage,      args: {modes: all, assertions: [C-01, C-05]},              modes: [meta], severity: warn}

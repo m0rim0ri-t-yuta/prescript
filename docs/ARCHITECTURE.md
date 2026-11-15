@@ -37,7 +37,7 @@ re-runs checks.
 
 | Module                 | Responsibility                                                          |
 | ---------------------- | ----------------------------------------------------------------------- |
-| `prescript/ir.py`      | Frozen IR types. Units in field names. `None` = undecided rating.       |
+| `prescript/ir.py`      | Frozen IR types: nodes, edges, modes, spec tables. `None` = undecided.  |
 | `prescript/loader.py`  | YAML 1.2-bool parsing, fluids, block elaboration, validation            |
 | `prescript/modes.py`   | Resolve overrides → equipment/valve states; circulation and dead legs   |
 | `prescript/result.py`  | Closed status set and the invariants a `Result` enforces at construction |

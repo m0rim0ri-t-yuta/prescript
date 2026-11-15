@@ -97,6 +97,24 @@ modes:
 load class, applied to `heat_kw`. `conditions` carry the boundary the facility side imposes —
 `facility_supply_c` is what `inlet_temp` needs, and a mode that omits it makes that check `UNRUN`.
 
+## Spec tables
+
+```yaml
+spec:
+  02_Loads:
+    provenance: "RA11338001 (S-21): the load schedule this netlist was built from"
+    rows:
+      - {id: RACK-01, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+```
+
+`spec` carries the sheets the design was taken from, transcribed: one table per sheet name, one row
+per element `id`, and a field name that is the attribute name on the node. `provenance` is
+mandatory, ids are unique within a table, and a cell the spec has not decided is `null`.
+
+The tables are not part of the design — nothing is elaborated from them and no check reads them for
+a value. `consistency` compares them with the elaborated netlist, which is what catches a block
+parameter edited by hand: eight racks move, and only the schedule still says 150 kW.
+
 ## Assertions
 
 `{id, check, args, modes, severity?}`. `modes` is `all`, or a list of mode names and/or the

@@ -15,6 +15,7 @@ Status rules for every routine: `agent-config/rules/verification-semantics.md`.
 | `return_temp`  | `kinds` (default `[cdu]`)                         | the mixed return at every running CDU stays within `return_min_c`–`return_max_c` | no mode; no CDUs; the mode sets no `facility_supply_c`; nothing circulating; any null input |
 | `pressure_drop` | `method` (`darcy_weisbach`), `limit` (default 1.0), `available_kpa?` | every load's loop drops no more than `limit` × the head of the pump on it (or `available_kpa`) | no mode; unknown method; nothing circulating; any null input, or a supply leg with no pump |
 | `completeness` | `kinds`                                           | every element of `kinds` has non-null `rating_*` (+ `kv_m3h` on valves) | no element of `kinds`                            |
+| `consistency`  | `against` (a `spec` table), `fields`              | every row of the table agrees with the netlist on every field | no table of that name; no `fields`; a cell undecided on either side (with no disagreement found) |
 | `coverage`     | —                                                 | every non-meta assertion × mode cell ran (not `UNRUN`)                 | nothing to cover                                  |
 
 ### How `loading` gets its numbers
@@ -78,10 +79,20 @@ not temperature rise, so in this model a heavier load does not warm the return; 
 temperature, the approach and each load's design `dT` do. Heat gained or lost along the pipes and
 bypass control are not modelled. A stopped CDU receives nothing and is not judged.
 
+### How `consistency` reads a disagreement
+
+The `spec` tables are the sheets the design came from, transcribed (`docs/PRESCRIPT-LANGUAGE.md`).
+The routine walks the table, not the design: a row the netlist does not have is a disagreement, a
+node the table does not list is simply not its business. Numbers compare as numbers, anything else
+as text, and nothing is converted — a field name means the same unit on both sides.
+
+A cell that is `null` on either side is an unanswered question, not a disagreement, so it goes to
+`missing`. With nothing else to report that is `UNRUN`; next to a disagreement that is proven, the
+result stays `FAIL` and carries the uncomparable cells alongside the evidence.
+
 ## Planned (return `UNRUN: not implemented`)
 
 | Routine          | Intent                                                                   | Milestone |
 | ---------------- | ------------------------------------------------------------------------ | --------- |
 | `ride_through`   | Loop thermal mass vs the time the IT load can be carried without cooling  | W3        |
 | `leak_isolation` | Every branch can be isolated without stopping a load that is still running | W3       |
-| `consistency`    | Netlist values match the spec table                                       | W3        |

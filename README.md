@@ -29,7 +29,7 @@ C-08  n_minus_1      PASS
 C-09  pressure_drop  PASS                                                        PASS
 C-10  balance        PASS                                                        PASS
 ...
-PASS 30 · FAIL 0 · WARN 1 · UNRUN 2
+PASS 31 · FAIL 0 · WARN 1 · UNRUN 1
 ```
 
 `UNRUN` is deliberate: a check that touches an undecided (`null`) rating, or that is not built yet,
