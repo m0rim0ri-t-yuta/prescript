@@ -11,6 +11,7 @@ from prescript import engine
 from prescript.checks.balance import METHOD as BALANCE_METHOD
 from prescript.checks.balance import balance
 from prescript.checks.completeness import completeness
+from prescript.checks.consistency import consistency
 from prescript.checks.dual_path import dual_path
 from prescript.checks.inlet_temp import inlet_temp
 from prescript.checks.loading import loading
@@ -522,6 +523,62 @@ def test_ride_through_stops_at_a_shut_valve(doc: dict[str, Any], design: Design)
     assert _seconds(r) < _seconds(_ride(design))
 
 
+# --- consistency ----------------------------------------------------------------
+
+
+def _spec_check(design: Design, against: str = "02_Loads") -> Result:
+    a = _a("consistency", against=against, fields=["heat_kw", "delta_t_k", "max_inlet_c"])
+    return consistency(design, None, a)
+
+
+def test_consistency_pass_on_the_reference(design: Design) -> None:
+    r = _spec_check(design)
+    assert r.status is Status.PASS
+    assert len(r.subjects) == 9
+    assert "02_Loads" in r.detail
+
+
+def test_consistency_catches_a_block_parameter_edit(doc: dict[str, Any]) -> None:
+    """The W4 demo: one parameter moves eight racks, and only the schedule notices."""
+    doc["blocks"]["rack_gb200_nvl72"]["params"]["heat_kw"] = 200
+    r = _spec_check(parse_design(doc))
+    assert r.status is Status.FAIL
+    assert len(r.offending) == 8
+    assert r.offending[0] == "RACK-01.heat_kw: netlist 200, 02_Loads 150"
+
+
+def test_consistency_reports_a_row_the_netlist_does_not_have(doc: dict[str, Any]) -> None:
+    doc["spec"]["02_Loads"]["rows"].append(
+        {"id": "RACK-09", "heat_kw": 150, "delta_t_k": 10, "max_inlet_c": 45}
+    )
+    r = _spec_check(parse_design(doc))
+    assert r.status is Status.FAIL
+    assert r.offending == ("RACK-09: in 02_Loads, not in the netlist",)
+
+
+def test_consistency_unrun_when_a_cell_is_undecided(doc: dict[str, Any]) -> None:
+    doc["spec"]["02_Loads"]["rows"][0]["heat_kw"] = None
+    r = _spec_check(parse_design(doc))
+    assert r.status is Status.UNRUN
+    assert r.missing == ("spec 02_Loads.RACK-01.heat_kw",)
+
+
+def test_consistency_unrun_without_the_table(design: Design) -> None:
+    r = _spec_check(design, against="99_Nope")
+    assert r.status is Status.UNRUN
+    assert r.missing == ("spec.99_Nope",)
+
+
+def test_consistency_still_fails_when_another_cell_cannot_be_compared(doc: dict[str, Any]) -> None:
+    """A proven disagreement is not hidden by an unanswered question; both are reported."""
+    doc["blocks"]["rack_gb200_nvl72"]["params"]["heat_kw"] = 200
+    doc["spec"]["02_Loads"]["rows"][1]["max_inlet_c"] = None
+    r = _spec_check(parse_design(doc))
+    assert r.status is Status.FAIL
+    assert r.missing == ("spec 02_Loads.RACK-02.max_inlet_c",)
+    assert any(o.startswith("RACK-02.heat_kw") for o in r.offending)
+
+
 # --- completeness: null never passes -------------------------------------------
 
 
@@ -545,10 +602,11 @@ def test_completeness_unrun_for_unknown_kind(design: Design) -> None:
 # --- engine-level invariants -----------------------------------------------------
 
 
-def test_not_implemented_never_passes(design: Design) -> None:
-    results = engine.run(design)
-    c13 = [r for r in results if r.assertion == "C-13"]  # consistency, still a W3 routine
-    assert c13 and all(r.status is Status.UNRUN for r in c13)
+def test_not_implemented_never_passes(doc: dict[str, Any]) -> None:
+    """Asserted against a routine that is still planned, so implementing one cannot break it."""
+    doc["assertions"].append({"id": "Z-00", "check": "leak_isolation", "modes": ["normal"]})
+    r = _result(engine.run(parse_design(doc)), "Z-00", "normal")
+    assert r.status is Status.UNRUN and r.detail == "not implemented"
 
 
 def test_unknown_check_is_unrun(doc: dict[str, Any]) -> None:
@@ -571,9 +629,13 @@ def test_reference_design_has_no_fail(design: Design) -> None:
 
 
 def test_every_unrun_in_the_reference_is_an_unbuilt_routine(design: Design) -> None:
-    """An assertion is not asked for in a mode where it could never leave UNRUN (#15)."""
+    """An assertion is not asked for in a mode where it could never leave UNRUN (#15).
+
+    The reference names only built routines now, so this list is empty. The assertion still
+    guards the property: an UNRUN that appears here for any other reason is a bug.
+    """
     unrun = [r for r in engine.run(design) if r.status is Status.UNRUN]
-    assert unrun and all("not implemented" in r.detail for r in unrun)
+    assert all("not implemented" in r.detail for r in unrun)
 
 
 def test_fail_without_evidence_is_impossible() -> None:

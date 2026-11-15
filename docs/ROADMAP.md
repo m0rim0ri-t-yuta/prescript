@@ -25,7 +25,7 @@ marked `assumed` with a round number.
 | W0   | Repo, agent config, IR, loader, circulation, `loop_closed`/`dual_path`/`completeness`, CI         | `prescript verify` runs on the reference; CI green ✅ |
 | W1   | Cooling IR (grammar v0.2), `loading` on a flow and a heat basis, `inlet_temp`                     | C-05/C-06/C-07 run in every mode they name ✅        |
 | W2   | `n_minus_1`, `pressure_drop` (1-D, named method), `balance`, `return_temp`; equipment tables (CSV) | coverage ≥ 90%                                      |
-| W3   | Loop diagram SVG (`prescript draw`), `prescript diff` between two netlists, `ride_through` ✅, `consistency` | coverage 100%                              |
+| W3   | Loop diagram SVG (`prescript draw`), `prescript diff` between two netlists, `ride_through` ✅, `consistency` ✅ | coverage 100%                          |
 | W4   | GitHub Action: verify + diff as a PR comment; README with GIF; 2-minute demo video                | demo PR goes red → fix → green                      |
 
 ## Demo script (W4)
@@ -55,8 +55,22 @@ Every figure below is measured on the reference design, not estimated.
    heat in `maint-cdu-A` and 91% of the pump's head in `valve-shut-01`: sized, not oversized. The
    diff shows exactly what changed and why.
 
+## Dynamic verification (epic #26)
+
+The static checks above stay the gate. Behind them, `prescript sim` runs a UVM-style testbench
+— constrained-random sequences, driver, monitor, scoreboard — against a time-domain plant model
+(`docs/SIMULATION.md`).
+
+| Phase | Deliverable                                                                                 | Exit criterion                                  |
+| ----- | ------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| 1 #27 | One exchanger and one PID valve; heat steps; settling and valve-authority scoreboard        | `prescript sim` PASS/FAIL per run; pytest green |
+| 2     | Plant built from the netlist (CDU, pumps, piping); load and facility-water profiles; cavitation | the reference design simulates in every mode |
+| 3     | Fault injection from the netlist's modes; switchover time; rack inlet red line              | `pump-fail-A` and `maint-cdu-A` judged in time  |
+| 4     | Thousands of scenarios in CI; functional-coverage report                                    | coverage report on every PR                      |
+
 ## Out of scope
 
 CFD, two-phase and immersion cooling, water chemistry and corrosion, the facility water plant
 (it enters as a mode condition), leak-detection logic, structural and routing constraints,
+pressure-wave transients (water hammer) until a method for them exists, the chiller plant and PUE,
 simulator integration beyond CSV export, DXF/PDF ingestion, a web UI, a custom grammar.
