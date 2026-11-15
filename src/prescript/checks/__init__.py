@@ -11,6 +11,7 @@ from collections.abc import Callable
 
 from prescript.checks.balance import balance
 from prescript.checks.completeness import completeness
+from prescript.checks.consistency import consistency
 from prescript.checks.dual_path import dual_path
 from prescript.checks.inlet_temp import inlet_temp
 from prescript.checks.loading import loading
@@ -27,6 +28,7 @@ Check = Callable[[Design, ModeState | None, Assertion], Result]
 REGISTRY: dict[str, Check] = {
     "balance": balance,
     "completeness": completeness,
+    "consistency": consistency,
     "dual_path": dual_path,
     "inlet_temp": inlet_temp,
     "loading": loading,
@@ -41,6 +43,5 @@ PLANNED: frozenset[str] = frozenset(
     {
         "ride_through",
         "leak_isolation",
-        "consistency",
     }
 )
