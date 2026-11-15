@@ -21,6 +21,7 @@ fluids:
   pg25:
     cp_kj_kgk: 3.85
     density_kg_l: 1.03
+    viscosity_mpas: 2.0
     provenance: "assumed: 25% propylene glycol / 75% water, round numbers at loop temperature"
 
 # ---------------------------------------------------------------- blocks ----
@@ -28,36 +29,44 @@ fluids:
 blocks:
   cdu_loop:
     description: "One CDU with a duty and a standby pump, and its supply and return headers"
-    params: {rating_kw: 1500, rating_lpm: 2300, approach_k: 3, dn_mm: 150}
+    # Temperature: the exchanger's approach and the return range it is selected for.
+    # Pressure: the pump's rated head, the exchanger's rated drop at its rated flow, and each
+    # header as pipe (bore, run length, roughness, summed fitting K) for Darcy-Weisbach.
+    params: {rating_kw: 1500, rating_lpm: 2300, approach_k: 3, return_min_c: 25, return_max_c: 50,
+             head_kpa: 250, cdu_dp_kpa: 50, dn_mm: 150, header_m: 30, header_k: 5,
+             roughness_mm: 0.045, pump_valve_kv: 600}
     provenance: "assumed (S-20): round numbers, no vendor data in this repository"
     expands_to:
-      - {id: "CDU-{s}", kind: cdu, rating_kw: "{rating_kw}", rating_lpm: "{rating_lpm}", approach_k: "{approach_k}", side: "{s}", fluid: pg25}
-      - {id: "PMP-{s}-1", kind: pump, rating_lpm: "{rating_lpm}", rating_kpa: null}
-      - {id: "PMP-{s}-2", kind: pump, rating_lpm: "{rating_lpm}", rating_kpa: null, state: standby, standby_of: "PMP-{s}-1"}
-      - {id: "HDR-S-{s}", kind: header, rating_lpm: "{rating_lpm}", dn_mm: "{dn_mm}", service: supply, fluid: pg25}
-      - {id: "HDR-R-{s}", kind: header, rating_lpm: "{rating_lpm}", dn_mm: "{dn_mm}", service: return, fluid: pg25}
+      - {id: "CDU-{s}", kind: cdu, rating_kw: "{rating_kw}", rating_lpm: "{rating_lpm}", approach_k: "{approach_k}", return_min_c: "{return_min_c}", return_max_c: "{return_max_c}", dp_kpa: "{cdu_dp_kpa}", dp_lpm: "{rating_lpm}", side: "{s}", fluid: pg25}
+      - {id: "PMP-{s}-1", kind: pump, rating_lpm: "{rating_lpm}", rating_kpa: "{head_kpa}"}
+      - {id: "PMP-{s}-2", kind: pump, rating_lpm: "{rating_lpm}", rating_kpa: "{head_kpa}", state: standby, standby_of: "PMP-{s}-1"}
+      - {id: "HDR-S-{s}", kind: header, rating_lpm: "{rating_lpm}", dn_mm: "{dn_mm}", length_m: "{header_m}", roughness_mm: "{roughness_mm}", k_fittings: "{header_k}", service: supply, fluid: pg25}
+      - {id: "HDR-R-{s}", kind: header, rating_lpm: "{rating_lpm}", dn_mm: "{dn_mm}", length_m: "{header_m}", roughness_mm: "{roughness_mm}", k_fittings: "{header_k}", service: return, fluid: pg25}
     edges:
-      - {from: "CDU-{s}", to: "PMP-{s}-1", via: {id: "V-PMP-{s}-1", kind: valve, kv_m3h: null}}
-      - {from: "CDU-{s}", to: "PMP-{s}-2", via: {id: "V-PMP-{s}-2", kind: valve, kv_m3h: null}}
+      - {from: "CDU-{s}", to: "PMP-{s}-1", via: {id: "V-PMP-{s}-1", kind: valve, kv_m3h: "{pump_valve_kv}", provenance: "assumed: round number"}}
+      - {from: "CDU-{s}", to: "PMP-{s}-2", via: {id: "V-PMP-{s}-2", kind: valve, kv_m3h: "{pump_valve_kv}", provenance: "assumed: round number"}}
       - {from: "PMP-{s}-1", to: "HDR-S-{s}"}
       - {from: "PMP-{s}-2", to: "HDR-S-{s}"}
       - {from: "HDR-R-{s}", to: "CDU-{s}"}
 
   rack_gb200_nvl72:
     description: "GB200 NVL72 rack, cold-plate cooled, dual-fed from the A and B rack manifolds"
-    params: {heat_kw: 150, delta_t_k: 10, max_inlet_c: 45, manifold_lpm: 300}
+    # Pressure: the manifold's rated drop at its rated flow, the rack's (cold plates lumped) at a
+    # stated flow, and the Kv of each branch valve.
+    params: {heat_kw: 150, delta_t_k: 10, max_inlet_c: 45, manifold_lpm: 300, manifold_dp_kpa: 30,
+             rack_dp_kpa: 100, rack_dp_lpm: 230, branch_kv: 60}
     provenance: "NVIDIA RA RA11338001: ~1.2 MW IT across 8 racks. Cooling figures assumed (S-21)."
     expands_to:
-      - {id: "MAN-A-{n}", kind: manifold, rating_lpm: "{manifold_lpm}", ports: 8, side: A, fluid: pg25}
-      - {id: "MAN-B-{n}", kind: manifold, rating_lpm: "{manifold_lpm}", ports: 8, side: B, fluid: pg25}
-      - {id: "RACK-{n}", kind: rack, class: it_liquid, heat_kw: "{heat_kw}", delta_t_k: "{delta_t_k}", max_inlet_c: "{max_inlet_c}", dual_fed: true, fluid: pg25}
+      - {id: "MAN-A-{n}", kind: manifold, rating_lpm: "{manifold_lpm}", dp_kpa: "{manifold_dp_kpa}", dp_lpm: "{manifold_lpm}", ports: 8, side: A, fluid: pg25}
+      - {id: "MAN-B-{n}", kind: manifold, rating_lpm: "{manifold_lpm}", dp_kpa: "{manifold_dp_kpa}", dp_lpm: "{manifold_lpm}", ports: 8, side: B, fluid: pg25}
+      - {id: "RACK-{n}", kind: rack, class: it_liquid, heat_kw: "{heat_kw}", delta_t_k: "{delta_t_k}", max_inlet_c: "{max_inlet_c}", dp_kpa: "{rack_dp_kpa}", dp_lpm: "{rack_dp_lpm}", dual_fed: true, fluid: pg25}
     edges:
-      - {from: "HDR-S-A", to: "MAN-A-{n}", via: {id: "V-SA-{n}", kind: valve, kv_m3h: null}}
-      - {from: "HDR-S-B", to: "MAN-B-{n}", via: {id: "V-SB-{n}", kind: valve, kv_m3h: null}}
+      - {from: "HDR-S-A", to: "MAN-A-{n}", via: {id: "V-SA-{n}", kind: valve, kv_m3h: "{branch_kv}", provenance: "assumed: round number"}}
+      - {from: "HDR-S-B", to: "MAN-B-{n}", via: {id: "V-SB-{n}", kind: valve, kv_m3h: "{branch_kv}", provenance: "assumed: round number"}}
       - {from: "MAN-A-{n}", to: "RACK-{n}", share: 0.5}
       - {from: "MAN-B-{n}", to: "RACK-{n}", share: 0.5}
-      - {from: "RACK-{n}", to: "HDR-R-A", via: {id: "V-RA-{n}", kind: valve, kv_m3h: null}, share: 0.5}
-      - {from: "RACK-{n}", to: "HDR-R-B", via: {id: "V-RB-{n}", kind: valve, kv_m3h: null}, share: 0.5}
+      - {from: "RACK-{n}", to: "HDR-R-A", via: {id: "V-RA-{n}", kind: valve, kv_m3h: "{branch_kv}", provenance: "assumed: round number"}, share: 0.5}
+      - {from: "RACK-{n}", to: "HDR-R-B", via: {id: "V-RB-{n}", kind: valve, kv_m3h: "{branch_kv}", provenance: "assumed: round number"}, share: 0.5}
 
 # ---------------------------------------------------------------- nodes -----
 nodes:
@@ -76,15 +85,15 @@ nodes:
   - {use: rack_gb200_nvl72, n: "08"}
 
   # Residual air-cooled load of the hall (switching, PSU losses) on rear-door exchangers (S-22)
-  - {id: RDHX-01, kind: rdhx, class: it_air, heat_kw: 120, delta_t_k: 10, max_inlet_c: 40, dual_fed: true, fluid: pg25, provenance: "assumed: 10% of IT power stays in air"}
+  - {id: RDHX-01, kind: rdhx, class: it_air, heat_kw: 120, delta_t_k: 10, max_inlet_c: 40, dp_kpa: 50, dp_lpm: 180, dual_fed: true, fluid: pg25, provenance: "assumed: 10% of IT power stays in air; drop a round number"}
 
 # ---------------------------------------------------------------- edges -----
 edges:
   # Rear-door exchangers hang off both supply headers and return to both return headers
-  - {from: HDR-S-A, to: RDHX-01, via: {id: V-SA-RDHX, kind: valve, kv_m3h: null}, share: 0.5}
-  - {from: HDR-S-B, to: RDHX-01, via: {id: V-SB-RDHX, kind: valve, kv_m3h: null}, share: 0.5}
-  - {from: RDHX-01, to: HDR-R-A, via: {id: V-RA-RDHX, kind: valve, kv_m3h: null}, share: 0.5}
-  - {from: RDHX-01, to: HDR-R-B, via: {id: V-RB-RDHX, kind: valve, kv_m3h: null}, share: 0.5}
+  - {from: HDR-S-A, to: RDHX-01, via: {id: V-SA-RDHX, kind: valve, kv_m3h: 60, provenance: "assumed: round number"}, share: 0.5}
+  - {from: HDR-S-B, to: RDHX-01, via: {id: V-SB-RDHX, kind: valve, kv_m3h: 60, provenance: "assumed: round number"}, share: 0.5}
+  - {from: RDHX-01, to: HDR-R-A, via: {id: V-RA-RDHX, kind: valve, kv_m3h: 60, provenance: "assumed: round number"}, share: 0.5}
+  - {from: RDHX-01, to: HDR-R-B, via: {id: V-RB-RDHX, kind: valve, kv_m3h: 60, provenance: "assumed: round number"}, share: 0.5}
 
 # ---------------------------------------------------------------- modes -----
 # Each mode overrides equipment and valve states, sets the facility-side boundary condition and
@@ -141,7 +150,7 @@ assertions:
   - {id: C-06, check: loading,       args: {basis: heat, kinds: [cdu], limit: 1.0},             modes: [normal, maint-cdu-A, maint-cdu-B, summer-peak]}
   - {id: C-07, check: inlet_temp,    args: {class: it_liquid},                                  modes: [normal, summer-peak]}
   - {id: C-08, check: n_minus_1,     args: {class: it_liquid, sweep: [cdu, pump, header, manifold]}, modes: [normal]}
-  - {id: C-09, check: pressure_drop, args: {method: darcy_weisbach, available_kpa: null},       modes: [normal, valve-shut-01]}
+  - {id: C-09, check: pressure_drop, args: {method: darcy_weisbach},                         modes: [normal, valve-shut-01]}
   - {id: C-10, check: balance,       args: {class: it_liquid, tolerance_pct: 10},               modes: [normal, valve-shut-01]}
   - {id: C-11, check: ride_through,  args: {class: it_liquid, must_exceed_s: 60},               modes: [facility-loss], severity: warn}
   - {id: C-12, check: return_temp,   args: {kinds: [cdu]},                                      modes: [normal, summer-peak]}

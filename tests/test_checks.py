@@ -7,13 +7,19 @@ from typing import Any
 import pytest
 
 from prescript import engine
+from prescript.checks.balance import METHOD as BALANCE_METHOD
+from prescript.checks.balance import balance
 from prescript.checks.completeness import completeness
 from prescript.checks.dual_path import dual_path
 from prescript.checks.inlet_temp import inlet_temp
 from prescript.checks.loading import loading
 from prescript.checks.loop_closed import loop_closed
 from prescript.checks.n_minus_1 import n_minus_1
-from prescript.ir import Assertion, Design
+from prescript.checks.pressure_drop import METHOD as PRESSURE_METHOD
+from prescript.checks.pressure_drop import _Inputs, _pipe_kpa, pressure_drop
+from prescript.checks.return_temp import METHOD as RETURN_METHOD
+from prescript.checks.return_temp import return_temp
+from prescript.ir import Assertion, Design, Fluid, Node
 from prescript.loader import parse_design
 from prescript.modes import resolve
 from prescript.result import Result, Status
@@ -225,10 +231,228 @@ def test_inlet_temp_unrun_without_the_facility_condition(doc: dict[str, Any]) ->
     assert r.missing == ("mode normal.conditions.facility_supply_c",)
 
 
+# --- balance --------------------------------------------------------------------
+
+
+def test_balance_pass_in_normal(design: Design) -> None:
+    r = balance(design, _state(design), _a("balance", tolerance_pct=10))
+    assert r.status is Status.PASS
+    assert "8 it_liquid loads within 10% of their required flow, worst 0%" in r.detail
+    assert BALANCE_METHOD in r.detail  # a screening method says so (verification-semantics §6)
+
+
+def test_balance_pass_with_one_branch_shut(design: Design) -> None:
+    """valve-shut-01 exists for this check: RACK-01 takes its whole 227 L/min through MAN-B-01."""
+    r = balance(design, _state(design, "valve-shut-01"), _a("balance", tolerance_pct=10))
+    assert r.status is Status.PASS
+
+
+def test_balance_fails_when_the_surviving_branch_is_too_small(doc: dict[str, Any]) -> None:
+    """A 150 L/min manifold is enough for half a rack, not for the whole of one."""
+    doc["blocks"]["rack_gb200_nvl72"]["params"]["manifold_lpm"] = 150
+    d = parse_design(doc)
+    r = balance(d, _state(d, "valve-shut-01"), _a("balance", tolerance_pct=10))
+    assert r.status is Status.FAIL
+    assert r.offending == ("RACK-01 227 L/min required, 150 L/min available (-34%)",)
+
+
+def test_balance_counts_every_load_an_element_carries(doc: dict[str, Any]) -> None:
+    """Each side carries 998.6 L/min (racks + half the RDHX) against 600: 227 * 600/998.6."""
+    doc["blocks"]["cdu_loop"]["params"]["rating_lpm"] = 600
+    d = parse_design(doc)
+    r = balance(d, _state(d), _a("balance", tolerance_pct=10))
+    assert r.status is Status.FAIL
+    assert len(r.offending) == 8
+    assert r.offending[0] == "RACK-01 227 L/min required, 136 L/min available (-40%)"
+
+
+def test_balance_pass_when_a_class_draws_nothing(doc: dict[str, Any]) -> None:
+    """Zero demand means zero required flow; it must not divide by it."""
+    doc["modes"]["normal"]["demand"]["it_liquid"] = 0.0
+    d = parse_design(doc)
+    assert balance(d, _state(d), _a("balance")).status is Status.PASS
+
+
+def test_balance_unrun_without_mode(design: Design) -> None:
+    assert balance(design, None, _a("balance")).status is Status.UNRUN
+
+
+def test_balance_unrun_when_a_rating_is_null(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"]["rating_lpm"] = None
+    d = parse_design(doc)
+    r = balance(d, _state(d), _a("balance"))
+    assert r.status is Status.UNRUN
+    assert "CDU-A.rating_lpm" in r.missing
+
+
+def test_balance_unrun_when_nothing_circulates(design: Design) -> None:
+    r = balance(design, _state(design, "facility-loss"), _a("balance"))
+    assert r.status is Status.UNRUN
+    assert r.detail == "no loads are circulating"
+
+
+def test_balance_unrun_for_empty_class(design: Design) -> None:
+    r = balance(design, _state(design), _a("balance", **{"class": "nope"}))
+    assert r.status is Status.UNRUN
+
+
+# --- pressure_drop --------------------------------------------------------------
+
+
+def test_pressure_drop_header_matches_darcy_weisbach_by_hand() -> None:
+    """998.6 L/min in DN150 PG25: v 0.942 m/s, Re 72756, f 0.0205; (f*30/0.15 + 5) * rho v^2/2."""
+    header = Node(
+        id="H",
+        kind="header",
+        attrs={"dn_mm": 150, "length_m": 30, "roughness_mm": 0.045, "k_fittings": 5},
+    )
+    fluid = Fluid(name="pg25", cp_kj_kgk=3.85, density_kg_l=1.03, viscosity_mpas=2.0)
+    assert _pipe_kpa(header, 998.6, fluid, _Inputs()) == pytest.approx(4.16, abs=0.01)
+
+
+def test_pressure_drop_pass_in_normal(design: Design) -> None:
+    """RACK-01: 20.2 kPa up a supply leg, 97.4 across the rack, 5.5 down a return: 123/250."""
+    r = pressure_drop(design, _state(design), _a("pressure_drop"))
+    assert r.status is Status.PASS
+    assert r.detail.startswith("9 loops within the available head, worst 49%")
+    assert PRESSURE_METHOD in r.detail  # a screening method says so (verification-semantics §6)
+
+
+def test_pressure_drop_fails_when_the_headers_are_too_narrow(doc: dict[str, Any]) -> None:
+    """The bore now matters: DN80 headers cost the pump more head than it has."""
+    doc["blocks"]["cdu_loop"]["params"]["dn_mm"] = 80
+    d = parse_design(doc)
+    r = pressure_drop(d, _state(d), _a("pressure_drop"))
+    assert r.status is Status.FAIL
+    assert r.offending[0] == "RACK-01 via PMP-A-1: 256/250 kPa (102%)"
+
+
+def test_pressure_drop_fails_after_a_rack_refresh(doc: dict[str, Any]) -> None:
+    """The roadmap demo: at 200 kW the rack whose A branch is shut pushes all of it through B."""
+    doc["blocks"]["rack_gb200_nvl72"]["params"]["heat_kw"] = 200
+    d = parse_design(doc)
+    r = pressure_drop(d, _state(d, "valve-shut-01"), _a("pressure_drop"))
+    assert r.status is Status.FAIL
+    assert r.offending == ("RACK-01 via PMP-B-1: 253/250 kPa (101%)",)
+
+
+def test_pressure_drop_available_kpa_overrides_the_pump(design: Design) -> None:
+    r = pressure_drop(design, _state(design), _a("pressure_drop", available_kpa=100))
+    assert r.status is Status.FAIL
+    assert r.offending[0] == "RACK-01 via available_kpa: 123/100 kPa (123%)"
+
+
+def test_pressure_drop_unrun_when_the_pump_head_is_null(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"]["head_kpa"] = None
+    d = parse_design(doc)
+    r = pressure_drop(d, _state(d), _a("pressure_drop"))
+    assert r.status is Status.UNRUN
+    assert "PMP-A-1.rating_kpa" in r.missing
+
+
+def test_pressure_drop_unrun_without_viscosity(doc: dict[str, Any]) -> None:
+    doc["fluids"]["pg25"]["viscosity_mpas"] = None
+    d = parse_design(doc)
+    r = pressure_drop(d, _state(d), _a("pressure_drop"))
+    assert r.status is Status.UNRUN
+    assert r.missing == ("fluid pg25.viscosity_mpas",)
+
+
+def test_pressure_drop_unrun_for_an_unknown_method(design: Design) -> None:
+    r = pressure_drop(design, _state(design), _a("pressure_drop", method="hazen_williams"))
+    assert r.status is Status.UNRUN
+
+
+def test_pressure_drop_unrun_when_nothing_circulates(design: Design) -> None:
+    r = pressure_drop(design, _state(design, "facility-loss"), _a("pressure_drop"))
+    assert r.status is Status.UNRUN
+
+
+def test_pressure_drop_unrun_without_mode(design: Design) -> None:
+    assert pressure_drop(design, None, _a("pressure_drop")).status is Status.UNRUN
+
+
+# --- return_temp ----------------------------------------------------------------
+
+
+def test_return_temp_pass_in_normal(design: Design) -> None:
+    """20 C facility + 3 K approach + 10 K across every load: 33 C back at both CDUs."""
+    r = return_temp(design, _state(design), _a("return_temp", kinds=["cdu"]))
+    assert r.status is Status.PASS
+    assert "2 cdus see a mixed return inside their range, warmest 33.0 C" in r.detail
+    assert RETURN_METHOD in r.detail  # a screening method says so (verification-semantics §6)
+
+
+def test_return_temp_fails_above_the_range(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"]["return_max_c"] = 40
+    d = parse_design(doc)
+    r = return_temp(d, _state(d, "summer-peak"), _a("return_temp"))
+    assert r.status is Status.FAIL
+    assert r.offending == (
+        "CDU-A mixed return 45.0 C > 40.0 C",
+        "CDU-B mixed return 45.0 C > 40.0 C",
+    )
+
+
+def test_return_temp_fails_below_the_range(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"]["return_min_c"] = 35
+    d = parse_design(doc)
+    r = return_temp(d, _state(d), _a("return_temp"))
+    assert r.status is Status.FAIL
+    assert r.offending[0] == "CDU-A mixed return 33.0 C < 35.0 C"
+
+
+@pytest.mark.parametrize(("ceiling", "status"), [(45.4, Status.FAIL), (45.5, Status.PASS)])
+def test_return_temp_weights_by_flow(doc: dict[str, Any], ceiling: float, status: Status) -> None:
+    """RDHX at dT 20 K sends half the flow at 55 C; mixed with the racks' 45 C that is 45.48 C.
+
+    A plain average of the two outlets would be 50 C, and of the nine loads 46.1 C.
+    """
+    rdhx = doc["nodes"][-1]
+    assert rdhx["id"] == "RDHX-01"
+    rdhx["delta_t_k"] = 20
+    doc["blocks"]["cdu_loop"]["params"]["return_max_c"] = ceiling
+    d = parse_design(doc)
+    assert return_temp(d, _state(d, "summer-peak"), _a("return_temp")).status is status
+
+
+def test_return_temp_judges_only_the_cdu_that_runs(design: Design) -> None:
+    r = return_temp(design, _state(design, "maint-cdu-A"), _a("return_temp"))
+    assert r.status is Status.PASS
+    assert r.subjects == ("CDU-B",)
+
+
+def test_return_temp_unrun_when_the_range_is_null(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"]["return_max_c"] = None
+    d = parse_design(doc)
+    r = return_temp(d, _state(d), _a("return_temp"))
+    assert r.status is Status.UNRUN
+    assert r.missing == ("CDU-A.return_max_c", "CDU-B.return_max_c")
+
+
+def test_return_temp_unrun_without_the_facility_condition(doc: dict[str, Any]) -> None:
+    doc["modes"]["normal"]["conditions"] = {}
+    d = parse_design(doc)
+    r = return_temp(d, _state(d), _a("return_temp"))
+    assert r.status is Status.UNRUN
+    assert r.missing == ("mode normal.conditions.facility_supply_c",)
+
+
+def test_return_temp_unrun_when_nothing_circulates(design: Design) -> None:
+    r = return_temp(design, _state(design, "facility-loss"), _a("return_temp"))
+    assert r.status is Status.UNRUN
+
+
+def test_return_temp_unrun_without_mode(design: Design) -> None:
+    assert return_temp(design, None, _a("return_temp")).status is Status.UNRUN
+
+
 # --- completeness: null never passes -------------------------------------------
 
 
-def test_completeness_reports_null_ratings(design: Design) -> None:
+def test_completeness_reports_null_ratings(doc: dict[str, Any]) -> None:
+    doc["blocks"]["rack_gb200_nvl72"]["params"]["branch_kv"] = None
+    design = parse_design(doc)
     r = completeness(design, None, _a("completeness", kinds=["valve"]))
     assert r.status is Status.FAIL
     assert "V-SA-01.kv_m3h" in r.offending
@@ -258,8 +482,9 @@ def test_unknown_check_is_unrun(doc: dict[str, Any]) -> None:
     assert r.status is Status.UNRUN and "unknown check" in r.detail
 
 
-def test_severity_warn_downgrades_fail_only(design: Design) -> None:
-    results = engine.run(design)
+def test_severity_warn_downgrades_fail_only(doc: dict[str, Any]) -> None:
+    doc["blocks"]["rack_gb200_nvl72"]["params"]["branch_kv"] = None  # C-14 now has nulls to find
+    results = engine.run(parse_design(doc))
     assert _result(results, "C-14", "static").status is Status.WARN
     assert _result(results, "C-15", "meta").status is Status.WARN
 

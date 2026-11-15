@@ -23,11 +23,12 @@ assertions: [...]
 
 ```yaml
 fluids:
-  pg25: {cp_kj_kgk: 3.85, density_kg_l: 1.03, provenance: "assumed: 25% propylene glycol"}
+  pg25: {cp_kj_kgk: 3.85, density_kg_l: 1.03, viscosity_mpas: 2.0, provenance: "assumed: 25% PG"}
 ```
 
 Every flow calculation uses `cp_kj_kgk × density_kg_l` as the `rho · cp` of `Q = V · rho · cp · dT`.
-`provenance` is mandatory; either property may be `null`, which makes the checks that need it
+`viscosity_mpas` (dynamic viscosity at loop temperature) is used only by `pressure_drop`.
+`provenance` is mandatory; any property may be `null`, which makes the checks that need it
 `UNRUN`. A node names its fluid with `fluid: <name>`; naming an undeclared fluid is an error.
 
 ## Nodes
@@ -36,13 +37,21 @@ Every flow calculation uses `cp_kj_kgk × density_kg_l` as the `rho · cp` of `Q
 `rack`, `rdhx`. **Every** kind must carry `provenance`.
 
 Attribute names carry units: `rating_kw`, `rating_lpm`, `rating_kpa`, `approach_k`, `heat_kw`,
-`delta_t_k`, `max_inlet_c`, `dn_mm`. An undecided value is `null`.
+`delta_t_k`, `max_inlet_c`, `return_min_c`, `return_max_c`, `dn_mm`, `length_m`, `roughness_mm`,
+`dp_kpa`, `dp_lpm`. An undecided value is `null`.
 
 Loads (`rack`, `rdhx`): `class` (e.g. `it_liquid` | `it_air`), `heat_kw`, `delta_t_k`,
 `max_inlet_c`, `dual_fed: true`.
-CDUs: `rating_kw`, `rating_lpm`, `approach_k`, `side: A|B`.
-Pumps: `rating_lpm`, `rating_kpa`, `standby_of: <id>`. A standby pump declares `state: standby`.
+CDUs: `rating_kw`, `rating_lpm`, `approach_k`, `return_min_c` / `return_max_c` (the return
+temperature range the exchanger is selected for), `side: A|B`.
+Pumps: `rating_lpm`, `rating_kpa` (the rated head: differential pressure at `rating_lpm`),
+`standby_of: <id>`. A standby pump declares `state: standby`.
+Headers: `rating_lpm`, and as pipe `dn_mm` (taken as the bore), `length_m`, `roughness_mm`,
+`k_fittings` (the summed loss coefficient of the fittings on the run, dimensionless).
 Manifolds: `rating_lpm`, `side: A|B`. Elsewhere the side is read from a whole `-A`/`-B` id segment.
+
+Pressure drop of equipment (CDU exchanger, manifold, rack, rdhx) is a rated point: `dp_kpa` at a flow
+of `dp_lpm`. At another flow it scales with the square of the flow.
 
 Default state is `on`. Equipment states: `on`, `off`, `standby`. `off` and `standby` are dead: they
 block flow.
@@ -51,7 +60,8 @@ block flow.
 
 `{from, to, via?, share?, bidirectional?, role?}` — directed **the way the coolant travels**, so a
 loop is a cycle: `cdu → pump → supply header → manifold → rack → return header → cdu`.
-`via: {id, kind: valve|check_valve, state?: open|closed, kv_m3h?, provenance?}`.
+`via: {id, kind: valve|check_valve, state?: open|closed, kv_m3h?, provenance?}`. `kv_m3h` is the
+flow coefficient: m³/h of water at a 1 bar drop.
 
 A valve defaults to `open` and conducts while it is open — the opposite of a breaker.
 `share` splits the quantity at a branch; it is used on both the supply and the return legs of a

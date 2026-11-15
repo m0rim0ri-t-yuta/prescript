@@ -34,9 +34,10 @@ Every figure below is measured on the reference design, not estimated.
 
 1. PR: refresh the racks 150 kW → 200 kW (GPU upgrade in an existing hall) — one `heat_kw` in
    `blocks.rack_gb200_nvl72.params`.
-2. CI comment goes red — `PASS 18 · FAIL 5 · WARN 2 · UNRUN 8`, and `prescript verify` exits 1.
-   Five cells fail, not one: both maintenance modes go down symmetrically, the hall is caught on
-   the heat basis as well as the flow basis, and the one isolated branch is caught on its own.
+2. CI comment goes red — `PASS 24 · FAIL 6 · WARN 1 · UNRUN 2`, and `prescript verify` exits 1.
+   Six cells fail, not one: both maintenance modes go down symmetrically, the hall is caught on
+   the heat basis as well as the flow basis, and the one isolated branch is caught twice — on
+   manifold flow and on pump head.
 
    | cell                 | finding                                                                                                                                  |
    | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -45,11 +46,14 @@ Every figure below is measured on the reference design, not estimated.
    | `C-05@valve-shut-01` | MAN-B-01 at 303/300 L/min (101%) — the rack whose A branch is shut takes its whole flow through B                                         |
    | `C-06@maint-cdu-A`   | CDU-B at 1720/1500 kW (115%) — the surviving unit is short of heat capacity, not just flow                                                |
    | `C-06@maint-cdu-B`   | CDU-A at 1720/1500 kW (115%)                                                                                                             |
+   | `C-09@valve-shut-01` | RACK-01 via PMP-B-1 at 253/250 kPa (101%) — the same rack's 303 L/min through one manifold costs side B's pump more head than it has      |
 
 3. Second commit: `cdu_loop` to `rating_kw: 1800`, `rating_lpm: 2800`, `dn_mm: 200` and
-   `manifold_lpm: 350` (or a third CDU).
-4. CI comment goes green — `PASS 23 · FAIL 0 · WARN 2 · UNRUN 8`, worst 93% on flow and 96% on
-   heat in `maint-cdu-A`: sized, not oversized. The diff shows exactly what changed and why.
+   `manifold_lpm: 350` (or a third CDU). The wider bore is margin, not the fix: with DN150 kept,
+   the pump-head check still passes at 95%.
+4. CI comment goes green — `PASS 30 · FAIL 0 · WARN 1 · UNRUN 2`, worst 93% on flow and 96% on
+   heat in `maint-cdu-A` and 91% of the pump's head in `valve-shut-01`: sized, not oversized. The
+   diff shows exactly what changed and why.
 
 ## Out of scope
 
