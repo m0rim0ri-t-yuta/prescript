@@ -15,8 +15,9 @@
 
 Pre-authorized without asking: reading, editing, running tests and linters, creating an issue and a
 worktree, committing, pushing a branch, opening a PR, and fixing your own red CI.
-Hard gates — stop and ask: **merging** (the owner merges), force-push, `--no-verify`, adding a
-non-public data source to `examples/`, publishing a release or tag, and changing `LICENSE`.
+Hard gates — stop and ask: **merging** (the owner merges, or tells you to —
+`review-governance.md`), force-push, `--no-verify`, adding a non-public data source to
+`examples/`, publishing a release or tag, and changing `LICENSE`.
 Everything else: act, then report.
 
 ## Project Overview

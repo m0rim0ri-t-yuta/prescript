@@ -2,12 +2,16 @@
 
 ## Principle
 
-The repository owner is the sole reviewer-of-record. Agents prepare PRs; the owner merges.
+The repository owner is the sole reviewer-of-record. Agents prepare PRs. The owner merges them,
+or tells an agent to merge — the decision stays the owner's either way.
 
 ## Rules
 
-1. **Agents never merge.** No `gh pr merge`, no pushing to `main`. Branch protection on `main`
-   requires a PR and green CI; agents do not change branch protection.
+1. **Agents merge only on the owner's explicit instruction.** Without one, an agent prepares the
+   PR and stops; `gh pr merge` is the owner's. An instruction covers the PRs it names and that
+   session only — it does not carry over to the next task. **No pushing to `main`** in either
+   case: branch protection requires a PR and green CI, and agents do not change branch
+   protection or enable auto-merge.
 2. **A PR is ready for the owner when**: CI is green, the PR template is filled in, the body names
    the `prescript verify` result on the reference design before and after (paste the summary line), and
    every changed behaviour has a test.

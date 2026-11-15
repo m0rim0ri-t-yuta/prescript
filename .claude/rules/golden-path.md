@@ -23,7 +23,7 @@ Every task follows these steps in order.
    OK) with `Closes #<id>`, filled-in PR template.
 6. **CI**: `gh pr checks <PR>` — every check must pass. A red check is yours to fix: read the job
    log, fix on this branch, push, re-check. Hand back only for a cause outside your diff.
-7. **Merge**: the owner merges (`review-governance.md`). After merge: `git worktree remove` the
-   worktree and pull `main`.
+7. **Merge**: the owner merges, or tells an agent to (`review-governance.md`).
+   After merge: `git worktree remove` the worktree and pull `main`.
 
 Update docs in the same PR when behaviour they describe changes (`doc-update.md`).
