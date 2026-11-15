@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pytest
@@ -20,6 +21,8 @@ from prescript.checks.pressure_drop import METHOD as PRESSURE_METHOD
 from prescript.checks.pressure_drop import _Inputs, _pipe_kpa, pressure_drop
 from prescript.checks.return_temp import METHOD as RETURN_METHOD
 from prescript.checks.return_temp import return_temp
+from prescript.checks.ride_through import METHOD as RIDE_METHOD
+from prescript.checks.ride_through import ride_through
 from prescript.ir import Assertion, Design, Fluid, Node
 from prescript.loader import parse_design
 from prescript.modes import resolve
@@ -448,6 +451,78 @@ def test_return_temp_unrun_without_mode(design: Design) -> None:
     assert return_temp(design, None, _a("return_temp")).status is Status.UNRUN
 
 
+# --- ride_through ---------------------------------------------------------------
+
+
+def _ride(design: Design, **args: Any) -> Result:
+    a = _a("ride_through", must_exceed_s=60, **args)
+    return ride_through(design, _state(design, "facility-loss"), a)
+
+
+def _seconds(r: Result) -> int:
+    """The time a ride_through result quotes, for comparing two designs."""
+    match = re.search(r"for (\d+) s", r.detail)
+    assert match, r.detail
+    return int(match.group(1))
+
+
+def test_ride_through_pass_in_facility_loss(design: Design) -> None:
+    r = _ride(design)
+    assert r.status is Status.PASS
+    assert r.subjects == ("RACK-01",)  # one connected inventory serves the whole hall
+    assert RIDE_METHOD in r.detail
+    assert _seconds(r) > 60
+
+
+def test_ride_through_fails_on_a_loop_with_too_little_water(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"].update(cdu_volume_l=1, pump_volume_l=1, header_m=0.1)
+    doc["blocks"]["rack_gb200_nvl72"]["params"].update(manifold_volume_l=1, rack_volume_l=1)
+    r = _ride(parse_design(doc))
+    assert r.status is Status.FAIL
+    assert r.offending and r.offending[0].startswith("RACK-01's loop: ")
+    assert "s < 60 s" in r.offending[0]
+
+
+def test_ride_through_unrun_without_the_loop_starting_temperature(doc: dict[str, Any]) -> None:
+    del doc["modes"]["facility-loss"]["conditions"]["loop_start_c"]
+    r = _ride(parse_design(doc))
+    assert r.status is Status.UNRUN
+    assert r.missing == ("mode facility-loss.conditions.loop_start_c",)
+
+
+def test_ride_through_unrun_when_an_inventory_is_null(doc: dict[str, Any]) -> None:
+    doc["blocks"]["rack_gb200_nvl72"]["params"]["rack_volume_l"] = None
+    r = _ride(parse_design(doc))
+    assert r.status is Status.UNRUN
+    assert "RACK-01.volume_l" in r.missing
+
+
+def test_ride_through_unrun_without_a_time_to_beat(design: Design) -> None:
+    a = Assertion(id="T", check="ride_through", args={}, modes=("facility-loss",))
+    r = ride_through(design, _state(design, "facility-loss"), a)
+    assert r.status is Status.UNRUN
+    assert r.missing == ("T.must_exceed_s",)
+
+
+def test_ride_through_takes_every_class_heat_but_its_own_limit(doc: dict[str, Any]) -> None:
+    """The rear doors heat the same water; the limit still comes from the class under test."""
+    quiet = _ride(parse_design(doc))
+    doc["modes"]["facility-loss"]["demand"]["it_air"] = 1.0
+    loud = _ride(parse_design(doc))
+    assert "RACK-01 at 45 C" in loud.detail  # not the rear door's 40 C
+    assert _seconds(loud) < _seconds(quiet)
+
+
+def test_ride_through_stops_at_a_shut_valve(doc: dict[str, Any], design: Design) -> None:
+    """A rack isolated on both sides rides on what is left inside its own branch, and no more."""
+    doc["modes"]["facility-loss"]["overrides"].update(
+        {"V-SA-01": "closed", "V-SB-01": "closed", "V-RA-01": "closed", "V-RB-01": "closed"}
+    )
+    r = _ride(parse_design(doc))
+    assert r.subjects == ("RACK-01", "RACK-02")  # the isolated rack, and the rest of the hall
+    assert _seconds(r) < _seconds(_ride(design))
+
+
 # --- consistency ----------------------------------------------------------------
 
 
@@ -554,9 +629,13 @@ def test_reference_design_has_no_fail(design: Design) -> None:
 
 
 def test_every_unrun_in_the_reference_is_an_unbuilt_routine(design: Design) -> None:
-    """An assertion is not asked for in a mode where it could never leave UNRUN (#15)."""
+    """An assertion is not asked for in a mode where it could never leave UNRUN (#15).
+
+    The reference names only built routines now, so this list is empty. The assertion still
+    guards the property: an UNRUN that appears here for any other reason is a bug.
+    """
     unrun = [r for r in engine.run(design) if r.status is Status.UNRUN]
-    assert unrun and all("not implemented" in r.detail for r in unrun)
+    assert all("not implemented" in r.detail for r in unrun)
 
 
 def test_fail_without_evidence_is_impossible() -> None:

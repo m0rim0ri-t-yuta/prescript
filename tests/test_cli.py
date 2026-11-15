@@ -17,8 +17,20 @@ def test_verify_reference_exits_zero() -> None:
     assert "GB200-1SU-DLC-POC" in res.output
 
 
-def test_verify_strict_fails_on_unrun() -> None:
-    assert runner.invoke(app, ["verify", "--strict", str(REFERENCE)]).exit_code == 1
+def test_verify_strict_fails_on_unrun(tmp_path: Path) -> None:
+    """`--strict` exits 1 on any UNRUN (verification-semantics.md 7).
+
+    The reference no longer carries one — every routine it names is built — so the case is made
+    with an assertion that names an unbuilt routine.
+    """
+    path = tmp_path / "unrun.yaml"
+    path.write_text(
+        REFERENCE.read_text(encoding="utf-8")
+        + "  - {id: C-99, check: leak_isolation, args: {}, modes: [normal]}\n",
+        encoding="utf-8",
+    )
+    assert runner.invoke(app, ["verify", str(path)]).exit_code == 0
+    assert runner.invoke(app, ["verify", "--strict", str(path)]).exit_code == 1
 
 
 def test_verify_markdown_for_pr_comments() -> None:
@@ -43,4 +55,24 @@ def test_netlist_error_exits_two(tmp_path: Path) -> None:
     bad = tmp_path / "bad.yaml"
     bad.write_text(yaml.safe_dump({"prescript": "0.2", "nodes": [{"id": "X"}]}), encoding="utf-8")
     res = runner.invoke(app, ["verify", str(bad)])
+    assert res.exit_code == 2
+
+
+def test_draw_writes_an_svg_file(tmp_path: Path) -> None:
+    out = tmp_path / "loop.svg"
+    res = runner.invoke(app, ["draw", str(REFERENCE), "--mode", "maint-cdu-A", "-o", str(out)])
+    assert res.exit_code == 0, res.output
+    svg = out.read_text(encoding="utf-8")
+    assert svg.startswith('<?xml version="1.0" encoding="UTF-8"?>')
+    assert "maint-cdu-A" in svg
+
+
+def test_draw_writes_svg_to_stdout() -> None:
+    res = runner.invoke(app, ["draw", str(REFERENCE)])
+    assert res.exit_code == 0, res.output
+    assert res.output.startswith('<?xml version="1.0" encoding="UTF-8"?>')
+
+
+def test_draw_unknown_mode_exits_two() -> None:
+    res = runner.invoke(app, ["draw", str(REFERENCE), "--mode", "no-such-mode"])
     assert res.exit_code == 2

@@ -25,7 +25,7 @@ marked `assumed` with a round number.
 | W0   | Repo, agent config, IR, loader, circulation, `loop_closed`/`dual_path`/`completeness`, CI         | `prescript verify` runs on the reference; CI green ✅ |
 | W1   | Cooling IR (grammar v0.2), `loading` on a flow and a heat basis, `inlet_temp`                     | C-05/C-06/C-07 run in every mode they name ✅        |
 | W2   | `n_minus_1`, `pressure_drop` (1-D, named method), `balance`, `return_temp`; equipment tables (CSV) | coverage ≥ 90%                                      |
-| W3   | Loop diagram SVG (`prescript draw`), `prescript diff` between two netlists, `ride_through`, `consistency` ✅ | coverage 100%                            |
+| W3   | Loop diagram SVG (`prescript draw` ✅), `prescript diff` between two netlists, `ride_through` ✅, `consistency` ✅ | coverage 100%                          |
 | W4   | GitHub Action: verify + diff as a PR comment; README with GIF; 2-minute demo video                | demo PR goes red → fix → green                      |
 
 ## Demo script (W4)
