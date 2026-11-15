@@ -10,6 +10,7 @@ Status rules for every routine: `agent-config/rules/verification-semantics.md`.
 | `dual_path`    | `class`, `sides` (default `[A, B]`)               | every `dual_fed` load of `class` has a live feed from each side        | no mode; no dual-fed loads                        |
 | `loading`      | `basis` (`flow`\|`heat`), `kinds`, `limit`        | no element of `kinds` carries more than `limit` × its rating           | no mode; no elements; nothing circulating; any null rating or load input |
 | `inlet_temp`   | `class`                                           | facility supply + CDU approach stays under each load's `max_inlet_c`   | no mode; no loads; the mode sets no `facility_supply_c`; any null input  |
+| `n_minus_1`    | `class`, `sweep` (kinds; default every non-load kind) | every load of `class` keeps a closed loop with any one swept element stopped | no mode; no loads of `class`; nothing of the swept kinds carries flow |
 | `completeness` | `kinds`                                           | every element of `kinds` has non-null `rating_*` (+ `kv_m3h` on valves) | no element of `kinds`                            |
 | `coverage`     | —                                                 | every non-meta assertion × mode cell ran (not `UNRUN`)                 | nothing to cover                                  |
 
@@ -25,11 +26,19 @@ This is a steady-state balance, not a hydraulic solution: it says how much has t
 element, not whether the pump can push it there. `pressure_drop` and `balance` are the routines
 that answer that, and neither is implemented.
 
+### What `n_minus_1` sweeps
+
+The sweep stops one element at a time, resolves the mode again and applies the same loop test as
+`loop_closed`. It covers only the elements that carry flow in that mode: a standby pump, a dead leg
+or the side a maintenance mode has already taken out has nothing left to drop, so stopping it could
+not change a result — and counting it would overstate how much redundancy was proved. Loads are
+never swept; they are what the sweep protects. One element at a time, nodes only: N-2 and valve
+sweeps are out of scope.
+
 ## Planned (return `UNRUN: not implemented`)
 
 | Routine          | Intent                                                                   | Milestone |
 | ---------------- | ------------------------------------------------------------------------ | --------- |
-| `n_minus_1`      | Remove each element of the swept kinds; every load keeps a closed loop    | W2        |
 | `pressure_drop`  | 1-D pipe network against the pump curve, method named in the result       | W2        |
 | `balance`        | Flow per rack within tolerance of its requirement across the hall         | W2        |
 | `return_temp`    | Mixed return temperature at the CDU against its design range              | W2        |

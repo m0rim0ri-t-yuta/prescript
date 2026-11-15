@@ -12,6 +12,7 @@ from prescript.checks.dual_path import dual_path
 from prescript.checks.inlet_temp import inlet_temp
 from prescript.checks.loading import loading
 from prescript.checks.loop_closed import loop_closed
+from prescript.checks.n_minus_1 import n_minus_1
 from prescript.ir import Assertion, Design
 from prescript.loader import parse_design
 from prescript.modes import resolve
@@ -70,6 +71,68 @@ def test_loop_closed_unrun_without_mode(design: Design) -> None:
 
 def test_loop_closed_unrun_for_empty_class(design: Design) -> None:
     r = loop_closed(design, _state(design), _a("loop_closed", **{"class": "nope"}))
+    assert r.status is Status.UNRUN
+
+
+# --- n_minus_1 ------------------------------------------------------------------
+
+SWEEP = ["cdu", "pump", "header", "manifold"]
+
+
+def test_n_minus_1_pass_in_normal(design: Design) -> None:
+    """2N CDUs with N+1 pumps: no single element the sweep stops costs a rack its loop."""
+    r = n_minus_1(design, _state(design), _a("n_minus_1", sweep=SWEEP))
+    assert r.status is Status.PASS
+    assert "8 it_liquid loads keep a closed loop with any one of 24 elements stopped" in r.detail
+    assert "MAN-A-01" in r.subjects
+    assert "PMP-A-2" not in r.subjects  # the standby pump carries no flow, so nothing to drop
+
+
+def test_n_minus_1_fails_when_the_surviving_cdu_is_the_last_one(design: Design) -> None:
+    """Maintenance has used the redundancy up: stopping CDU-B now takes the whole hall."""
+    r = n_minus_1(design, _state(design, "maint-cdu-A"), _a("n_minus_1", sweep=["cdu"]))
+    assert r.status is Status.FAIL
+    assert r.detail == "stopping CDU-B leaves 8/8 it_liquid loads without a closed loop"
+    assert r.offending == (
+        "CDU-B: RACK-01, RACK-02, RACK-03, RACK-04, RACK-05, RACK-06, RACK-07, RACK-08",
+    )
+
+
+def test_n_minus_1_names_every_single_point_of_failure(doc: dict[str, Any]) -> None:
+    """With RACK-03 fed from side A alone, each A-side element upstream of it becomes single."""
+    doc["modes"]["normal"]["overrides"] = {"V-SB-03": "closed"}
+    d = parse_design(doc)
+    r = n_minus_1(d, _state(d), _a("n_minus_1", sweep=SWEEP))
+    assert r.status is Status.FAIL
+    assert r.detail == "5/23 elements leave it_liquid loads without a closed loop"
+    assert r.offending == (
+        "CDU-A: RACK-03",
+        "HDR-R-A: RACK-03",
+        "HDR-S-A: RACK-03",
+        "MAN-A-03: RACK-03",
+        "PMP-A-1: RACK-03",
+    )
+
+
+def test_n_minus_1_sweeps_only_what_carries_flow(design: Design) -> None:
+    """In pump-fail-A the standby of side A is running and the duty pump is the dead one."""
+    r = n_minus_1(design, _state(design, "pump-fail-A"), _a("n_minus_1", sweep=["pump"]))
+    assert r.status is Status.PASS
+    assert r.subjects == ("PMP-A-2", "PMP-B-1")
+
+
+def test_n_minus_1_unrun_without_mode(design: Design) -> None:
+    assert n_minus_1(design, None, _a("n_minus_1")).status is Status.UNRUN
+
+
+def test_n_minus_1_unrun_when_nothing_carries_flow(design: Design) -> None:
+    r = n_minus_1(design, _state(design, "facility-loss"), _a("n_minus_1", sweep=["cdu"]))
+    assert r.status is Status.UNRUN
+    assert r.detail == "nothing of kind cdu carries flow here"
+
+
+def test_n_minus_1_unrun_for_empty_class(design: Design) -> None:
+    r = n_minus_1(design, _state(design), _a("n_minus_1", **{"class": "nope"}))
     assert r.status is Status.UNRUN
 
 
@@ -185,8 +248,8 @@ def test_completeness_unrun_for_unknown_kind(design: Design) -> None:
 
 def test_not_implemented_never_passes(design: Design) -> None:
     results = engine.run(design)
-    c08 = [r for r in results if r.assertion == "C-08"]
-    assert c08 and all(r.status is Status.UNRUN for r in c08)
+    c13 = [r for r in results if r.assertion == "C-13"]  # consistency, still a W3 routine
+    assert c13 and all(r.status is Status.UNRUN for r in c13)
 
 
 def test_unknown_check_is_unrun(doc: dict[str, Any]) -> None:

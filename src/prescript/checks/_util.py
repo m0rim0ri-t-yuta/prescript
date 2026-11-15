@@ -9,6 +9,7 @@ quantity is split by the edge `share`.
 from __future__ import annotations
 
 import re
+from collections import deque
 
 from prescript.ir import LOAD_KINDS, SOURCE_KINDS, Design, Edge, Node
 from prescript.modes import ModeState
@@ -36,6 +37,37 @@ def node_side(node: Node, sides: list[str]) -> str | None:
 
 def targets(design: Design, cls: str) -> list[Node]:
     return sorted(design.loads_of_class(cls), key=lambda n: n.id)
+
+
+def forward_reach(design: Design, state: ModeState, start: str) -> set[str]:
+    """Everything the fluid leaving `start` can reach in this mode, `start` included if it loops."""
+    seen: set[str] = set()
+    queue: deque[str] = deque([start])
+    while queue:
+        for edge in state.outlets(design, queue.popleft()):
+            if edge.dst in seen:
+                continue
+            seen.add(edge.dst)
+            queue.append(edge.dst)
+    return seen
+
+
+def loop_break(design: Design, state: ModeState, load: Node, via: str | None = None) -> str | None:
+    """Why `load` has no closed loop in this mode, or None when it has one.
+
+    One rule, shared by `loop_closed` and `n_minus_1`: a load needs a live supply, a return that
+    comes back to a CDU, and — when `via` is given — that element on the loop.
+    """
+    if load.id not in state.circulating:
+        return "no supply"
+    reach = forward_reach(design, state, load.id)
+    if load.id not in reach:
+        return "no return path"
+    if not any(design.nodes[n].kind in SOURCE_KINDS for n in reach):
+        return "loop reaches no cdu"
+    if via is not None and via not in reach:
+        return f"loop does not pass {via}"
+    return None
 
 
 def load_quantity(
