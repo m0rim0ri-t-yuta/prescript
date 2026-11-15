@@ -44,7 +44,8 @@ re-runs checks.
 | `prescript/checks/`    | One routine per module; `REGISTRY` + `PLANNED`; `_util.accumulate`      |
 | `prescript/engine.py`  | Assertion × mode loop, severity, coverage                               |
 | `prescript/report.py`  | Matrix + findings as text, Markdown, JSON                               |
-| `prescript/cli.py`     | `prescript verify`, `prescript elaborate`                               |
+| `prescript/sim/`       | Plant model, PID, UVM-style testbench and its report (`SIMULATION.md`)   |
+| `prescript/cli.py`     | `prescript verify`, `prescript elaborate`, `prescript sim`              |
 
 ## 4. Design decisions
 
@@ -57,8 +58,10 @@ re-runs checks.
 3. **Topology first, physics later.** v0.2 answers "does it circulate, does every element stay
    inside its rating, does every rack get its share, and can the pump push it?" with the
    steady-state sensible-heat balance `Q = V · rho · cp · dT`, a rating-limited flow balance and a
-   1-D pressure-drop screening — each method named in its results. Solving the network, the pump
-   curve and transient behaviour come later, and only with a defensible method. Industry
+   1-D pressure-drop screening — each method named in its results. Solving the network and the
+   pump curve come later, and only with a defensible method. Transient behaviour is a separate
+   stage, `prescript sim` (`SIMULATION.md`): a lumped plant model driven by a UVM-style testbench,
+   after the static checks and never instead of them. Industry
    simulators are export targets, not something Prescript re-implements.
 4. **The facility loop is a boundary condition.** The scope is the technology cooling loop (TCS)
    on the rack side of the CDU, because that is what a retrofit changes. What the facility water
