@@ -54,6 +54,7 @@ headers, in the numbers.
 | SVA assertions           | `assertions:` — closed loop, dual path, loading, …  |
 | Functional coverage      | assertion × mode coverage                           |
 | Regression in CI         | `prescript verify` comment on every PR              |
+| UVM testbench            | `prescript sim` — random load steps on a plant model |
 
 ## Reference design
 
@@ -64,7 +65,8 @@ count and IT power follow NVIDIA's public reference architecture; every cooling 
 ## Docs
 
 [Architecture](docs/ARCHITECTURE.md) · [Netlist language](docs/PRESCRIPT-LANGUAGE.md) ·
-[Checks](docs/CHECKS.md) · [Development](docs/DEVELOPMENT.md) · [Roadmap](docs/ROADMAP.md)
+[Checks](docs/CHECKS.md) · [Simulation](docs/SIMULATION.md) · [Development](docs/DEVELOPMENT.md) ·
+[Roadmap](docs/ROADMAP.md)
 
 Contributors and coding agents: start at [`AGENTS.md`](AGENTS.md).
 

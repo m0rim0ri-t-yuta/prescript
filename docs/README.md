@@ -8,6 +8,7 @@
 | [ARCHITECTURE.md](./ARCHITECTURE.md)         | Pipeline, IR, module boundaries, design decisions         | Everyone (read first) |
 | [PRESCRIPT-LANGUAGE.md](./PRESCRIPT-LANGUAGE.md)       | Netlist grammar v0.1 (SSOT; the loader implements it)     | Authors / developers  |
 | [CHECKS.md](./CHECKS.md)                     | Assertion routines: semantics, args, status per case      | Authors / developers  |
+| [SIMULATION.md](./SIMULATION.md)             | Dynamic verification: plant model, UVM-style testbench, scoreboard | Authors / developers  |
 | [ROADMAP.md](./ROADMAP.md)                   | Winter PoC milestones, scope, out-of-scope, demo script   | Everyone              |
 | [DEVELOPMENT.md](./DEVELOPMENT.md)           | Setup, commands, hooks, CI                                | Developers / agents   |
 | [ISSUE_MANAGEMENT.md](./ISSUE_MANAGEMENT.md) | Labels, Issue Types, epics                                | Developers / agents   |

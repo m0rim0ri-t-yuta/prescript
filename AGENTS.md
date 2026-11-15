@@ -49,10 +49,12 @@ Non-obvious constraints only — everything else is discoverable from the repo
 - **Public data only**: everything under `examples/` comes from public reference designs, standards
   or explicit assumptions (`agent-config/rules/public-data.md`).
 - **Grammar SSOT** is `docs/PRESCRIPT-LANGUAGE.md`; the loader implements it. Change both in one PR.
-- **No physics we cannot defend**: pressure drop, flow balance between racks and transient
-  behaviour stay `UNRUN` (or simplified with the method named in the result) until a validated
-  method exists. v0.2 goes no further than the steady-state sensible-heat balance
-  `Q = V * rho * cp * dT`. Industry simulators are integration targets, not things we re-implement.
+- **No physics we cannot defend**: a result that rests on a model names the method in `detail`
+  and is never presented as a study result. The static checks go no further than the steady-state
+  sensible-heat balance `Q = V * rho * cp * dT` (and the screening methods each check names).
+  Transient behaviour runs only in `prescript sim`, on the lumped model `docs/SIMULATION.md`
+  describes; anything that model cannot represent (water hammer, for one) stays `UNRUN`.
+  Industry simulators are integration targets, not things we re-implement.
 
 ## Key Paths
 
@@ -61,7 +63,9 @@ Non-obvious constraints only — everything else is discoverable from the repo
 - `src/prescript/modes.py` — per-mode state resolution, circulation and dead legs
 - `src/prescript/checks/` — one module per assertion routine; registry in `checks/__init__.py`;
   the flow/heat accumulation every sizing check shares lives in `checks/_util.py`
-- `src/prescript/cli.py` — `prescript verify` / `prescript elaborate`
+- `src/prescript/sim/` — dynamic verification: plant model, PID, UVM-style testbench parts
+  (`docs/SIMULATION.md`)
+- `src/prescript/cli.py` — `prescript verify` / `prescript elaborate` / `prescript sim`
 - `examples/gb200-1su/netlist.yaml` — the reference design
 
 ## Quick Start
@@ -81,4 +85,4 @@ Non-obvious constraints only — everything else is discoverable from the repo
   - PR title format: Conventional Commits — `<type>(<scope>): <subject> #<issue>`
     (e.g. `feat(checks): add loading assertion #12`). Types: `feat` / `fix` / `chore` / `docs` /
     `refactor` / `test` / `perf`. Scopes: `ir`, `loader`, `modes`, `checks`, `report`, `cli`,
-    `render`, `examples`, `ci`, `docs`, `agents`.
+    `render`, `sim`, `examples`, `ci`, `docs`, `agents`.
