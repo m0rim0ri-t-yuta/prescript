@@ -106,3 +106,28 @@ def test_unsupported_grammar_version(doc: dict[str, Any]) -> None:
 
 def test_fluid_viscosity_is_read(design: Design) -> None:
     assert design.fluids["pg25"].viscosity_mpas == 2.0
+
+
+def test_spec_table_is_read_into_the_ir(design: Design) -> None:
+    table = design.spec["02_Loads"]
+    assert len(table.rows) == 9
+    assert table.rows["RACK-01"]["heat_kw"] == 150
+    assert table.provenance
+
+
+def test_a_spec_table_needs_provenance(doc: dict[str, Any]) -> None:
+    del doc["spec"]["02_Loads"]["provenance"]
+    with pytest.raises(NetlistError, match="provenance is mandatory"):
+        parse_design(doc)
+
+
+def test_a_spec_row_needs_an_id(doc: dict[str, Any]) -> None:
+    doc["spec"]["02_Loads"]["rows"].append({"heat_kw": 150})
+    with pytest.raises(NetlistError, match="every row needs an id"):
+        parse_design(doc)
+
+
+def test_duplicate_spec_rows_are_rejected(doc: dict[str, Any]) -> None:
+    doc["spec"]["02_Loads"]["rows"].append({"id": "RACK-01", "heat_kw": 150})
+    with pytest.raises(NetlistError, match="duplicate row id"):
+        parse_design(doc)

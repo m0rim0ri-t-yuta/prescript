@@ -1,7 +1,7 @@
 """inlet_temp: coolant reaching each load stays below the load's maximum inlet temperature.
 
 Screening estimate only: facility supply temperature plus the approach of the CDU that serves the
-load. It ignores gain along the pipe run and mixing at the return header.
+load. It ignores gain along the pipe run; the mixing at the return header is `return_temp`.
 """
 
 from __future__ import annotations

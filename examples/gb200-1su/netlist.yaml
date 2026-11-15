@@ -29,13 +29,15 @@ fluids:
 blocks:
   cdu_loop:
     description: "One CDU with a duty and a standby pump, and its supply and return headers"
+    # Temperature: the exchanger's approach and the return range it is selected for.
     # Pressure: the pump's rated head, the exchanger's rated drop at its rated flow, and each
     # header as pipe (bore, run length, roughness, summed fitting K) for Darcy-Weisbach.
-    params: {rating_kw: 1500, rating_lpm: 2300, approach_k: 3, head_kpa: 250, cdu_dp_kpa: 50,
-             dn_mm: 150, header_m: 30, header_k: 5, roughness_mm: 0.045, pump_valve_kv: 600}
+    params: {rating_kw: 1500, rating_lpm: 2300, approach_k: 3, return_min_c: 25, return_max_c: 50,
+             head_kpa: 250, cdu_dp_kpa: 50, dn_mm: 150, header_m: 30, header_k: 5,
+             roughness_mm: 0.045, pump_valve_kv: 600}
     provenance: "assumed (S-20): round numbers, no vendor data in this repository"
     expands_to:
-      - {id: "CDU-{s}", kind: cdu, rating_kw: "{rating_kw}", rating_lpm: "{rating_lpm}", approach_k: "{approach_k}", dp_kpa: "{cdu_dp_kpa}", dp_lpm: "{rating_lpm}", side: "{s}", fluid: pg25}
+      - {id: "CDU-{s}", kind: cdu, rating_kw: "{rating_kw}", rating_lpm: "{rating_lpm}", approach_k: "{approach_k}", return_min_c: "{return_min_c}", return_max_c: "{return_max_c}", dp_kpa: "{cdu_dp_kpa}", dp_lpm: "{rating_lpm}", side: "{s}", fluid: pg25}
       - {id: "PMP-{s}-1", kind: pump, rating_lpm: "{rating_lpm}", rating_kpa: "{head_kpa}"}
       - {id: "PMP-{s}-2", kind: pump, rating_lpm: "{rating_lpm}", rating_kpa: "{head_kpa}", state: standby, standby_of: "PMP-{s}-1"}
       - {id: "HDR-S-{s}", kind: header, rating_lpm: "{rating_lpm}", dn_mm: "{dn_mm}", length_m: "{header_m}", roughness_mm: "{roughness_mm}", k_fittings: "{header_k}", service: supply, fluid: pg25}
@@ -131,6 +133,24 @@ modes:
     conditions: {facility_supply_c: 45}
     note: "Facility water lost and both CDUs trip; how long until the GPUs must throttle"
 
+# ------------------------------------------------------------------ spec ----
+# The sheets this design was taken from, transcribed. `consistency` proves the elaborated netlist
+# still agrees with them: the racks come out of a block, so one parameter edit moves all eight at
+# once and only the schedule notices.
+spec:
+  02_Loads:
+    provenance: "NVIDIA RA RA11338001 (S-21/S-22): the load schedule this netlist was built from; cooling figures assumed"
+    rows:
+      - {id: RACK-01, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-02, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-03, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-04, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-05, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-06, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-07, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RACK-08, heat_kw: 150, delta_t_k: 10, max_inlet_c: 45}
+      - {id: RDHX-01, heat_kw: 120, delta_t_k: 10, max_inlet_c: 40}
+
 # ------------------------------------------------------------ assertions ----
 # `check` names a built-in verifier routine; unimplemented ones report UNRUN.
 assertions:
@@ -152,6 +172,6 @@ assertions:
   - {id: C-10, check: balance,       args: {class: it_liquid, tolerance_pct: 10},               modes: [normal, valve-shut-01]}
   - {id: C-11, check: ride_through,  args: {class: it_liquid, must_exceed_s: 60},               modes: [facility-loss], severity: warn}
   - {id: C-12, check: return_temp,   args: {kinds: [cdu]},                                      modes: [normal, summer-peak]}
-  - {id: C-13, check: consistency,   args: {against: "02_Loads", fields: [heat_kw]},            modes: [static]}
+  - {id: C-13, check: consistency,   args: {against: "02_Loads", fields: [heat_kw, delta_t_k, max_inlet_c]}, modes: [static]}
   - {id: C-14, check: completeness,  args: {kinds: [cdu, pump, header, manifold, valve]},       modes: [static], severity: warn}
   - {id: C-15, check: coverage,      args: {modes: all, assertions: [C-01, C-05]},              modes: [meta], severity: warn}
