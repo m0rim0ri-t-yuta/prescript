@@ -34,7 +34,7 @@ Every figure below is measured on the reference design, not estimated.
 
 1. PR: refresh the racks 150 kW → 200 kW (GPU upgrade in an existing hall) — one `heat_kw` in
    `blocks.rack_gb200_nvl72.params`.
-2. CI comment goes red — `PASS 18 · FAIL 5 · WARN 2 · UNRUN 8`, and `prescript verify` exits 1.
+2. CI comment goes red — `PASS 20 · FAIL 5 · WARN 2 · UNRUN 6`, and `prescript verify` exits 1.
    Five cells fail, not one: both maintenance modes go down symmetrically, the hall is caught on
    the heat basis as well as the flow basis, and the one isolated branch is caught on its own.
 
@@ -48,7 +48,7 @@ Every figure below is measured on the reference design, not estimated.
 
 3. Second commit: `cdu_loop` to `rating_kw: 1800`, `rating_lpm: 2800`, `dn_mm: 200` and
    `manifold_lpm: 350` (or a third CDU).
-4. CI comment goes green — `PASS 23 · FAIL 0 · WARN 2 · UNRUN 8`, worst 93% on flow and 96% on
+4. CI comment goes green — `PASS 25 · FAIL 0 · WARN 2 · UNRUN 6`, worst 93% on flow and 96% on
    heat in `maint-cdu-A`: sized, not oversized. The diff shows exactly what changed and why.
 
 ## Out of scope
