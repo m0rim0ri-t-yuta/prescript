@@ -85,10 +85,10 @@ def _substitute(value: Any, params: dict[str, Any]) -> Any:
 def _elaborate(
     raw_nodes: list[dict[str, Any]],
     blocks: dict[str, Any],
-) -> tuple[list[tuple[dict[str, Any], str | None]], list[dict[str, Any]]]:
-    """Expand `{use: <block>, ...}` entries into plain node and edge dicts."""
+) -> tuple[list[tuple[dict[str, Any], str | None]], list[tuple[dict[str, Any], str | None]]]:
+    """Expand `{use: <block>, ...}` entries into plain node and edge dicts, each with its block."""
     nodes: list[tuple[dict[str, Any], str | None]] = []
-    edges: list[dict[str, Any]] = []
+    edges: list[tuple[dict[str, Any], str | None]] = []
     for entry in raw_nodes:
         if "use" not in entry:
             nodes.append((entry, None))
@@ -106,7 +106,7 @@ def _elaborate(
             node.setdefault("provenance", block_prov)
             nodes.append((node, origin))
         for tmpl in block.get("edges", []):
-            edges.append(_substitute(tmpl, params))
+            edges.append((_substitute(tmpl, params), origin))
     return nodes, edges
 
 
@@ -167,7 +167,7 @@ def _to_device(raw: dict[str, Any], edge_label: str) -> Device:
         raise NetlistError(f"device {raw['id']}: {exc}") from exc
 
 
-def _to_edge(raw: dict[str, Any]) -> Edge:
+def _to_edge(raw: dict[str, Any], origin: str | None = None) -> Edge:
     try:
         src, dst = str(raw["from"]), str(raw["to"])
     except KeyError as exc:
@@ -184,6 +184,7 @@ def _to_edge(raw: dict[str, Any]) -> Edge:
         share=raw.get("share"),
         bidirectional=bool(raw.get("bidirectional", False)),
         role=raw.get("role"),
+        origin=origin,
     )
 
 
@@ -258,7 +259,8 @@ def parse_design(doc: dict[str, Any]) -> Design:
             raise NetlistError(f"duplicate node id '{node.id}'")
         nodes[node.id] = node
 
-    edges = [_to_edge(e) for e in [*block_edges, *(doc.get("edges") or [])]]
+    hand_written = [(e, None) for e in (doc.get("edges") or [])]
+    edges = [_to_edge(raw, origin) for raw, origin in [*block_edges, *hand_written]]
 
     modes = {
         str(name): Mode(

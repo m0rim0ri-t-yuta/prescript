@@ -119,3 +119,23 @@ def test_cli_rejects_a_broken_netlist(tmp_path: Any) -> None:
     bad = tmp_path / "bad.yaml"
     bad.write_text("prescript: 9.9\n", encoding="utf-8")
     assert runner.invoke(app, ["diff", str(REFERENCE), str(bad)]).exit_code == 2
+
+
+def test_a_new_block_instance_groups_its_nodes_and_its_edges(
+    doc: dict[str, Any], design: Design
+) -> None:
+    """One decision — a ninth rack — is two lines, not nine (#38)."""
+    doc["nodes"].append({"use": "rack_gb200_nvl72", "n": "09"})
+    groups = diff.group(diff.compare(design, parse_design(doc)))
+    labels = [g.label for g in groups]
+    assert labels == ["rack_gb200_nvl72 x3 nodes", "rack_gb200_nvl72 x6 edges"]
+    assert all(g.how == diff.ADDED for g in groups)
+
+
+def test_a_hand_written_edge_stands_alone(doc: dict[str, Any], design: Design) -> None:
+    """No block wrote it, so nothing is invented to group it with."""
+    doc["edges"] = [
+        e for e in doc["edges"] if not (e["from"] == "HDR-S-B" and e["to"] == "RDHX-01")
+    ]
+    groups = diff.group(diff.compare(design, parse_design(doc)))
+    assert [g.label for g in groups] == ["edge HDR-S-B → RDHX-01 via V-SB-RDHX"]

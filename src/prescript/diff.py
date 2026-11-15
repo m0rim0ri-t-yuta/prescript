@@ -72,9 +72,10 @@ def _fields(
     return out
 
 
-def _edge_key(design: Design) -> dict[str, dict[str, Any]]:
-    """Every edge as `src → dst [via]` -> the values worth comparing."""
+def _edge_key(design: Design) -> tuple[dict[str, dict[str, Any]], dict[str, str | None]]:
+    """Every edge as `src → dst [via]` -> the values worth comparing, and the block it came from."""
     out: dict[str, dict[str, Any]] = {}
+    origins: dict[str, str | None] = {}
     for edge in design.edges:
         label = f"{edge.src} → {edge.dst}"
         if edge.via is not None:
@@ -88,7 +89,8 @@ def _edge_key(design: Design) -> dict[str, dict[str, Any]]:
             body["valve.state"] = edge.via.state
             body.update({f"valve.{k}": v for k, v in edge.via.attrs.items()})
         out[label] = body
-    return out
+        origins[label] = edge.origin
+    return out, origins
 
 
 def _elements(
@@ -133,7 +135,9 @@ def compare(before: Design, after: Design) -> list[Change]:
         {i: n.origin for i, n in {**before.nodes, **after.nodes}.items()},
     )
 
-    changes += _elements("edge", _edge_key(before), _edge_key(after))
+    was_edges, was_origins = _edge_key(before)
+    now_edges, now_origins = _edge_key(after)
+    changes += _elements("edge", was_edges, now_edges, {**was_origins, **now_origins})
 
     changes += _elements(
         "mode",
@@ -215,8 +219,11 @@ def group(changes: list[Change]) -> list[Group]:
             detail = f"({kind})" if kind and len(members) == 1 else ""
         if len(members) == 1:
             label = f"{first.what} {first.subject}"
-        else:
+        elif first.how == CHANGED:
             label = f"{_block_of(first.origin)} x{len(members)}"
+        else:
+            # Nothing else on the line says whether these are nodes or edges, so the label does.
+            label = f"{_block_of(first.origin)} x{len(members)} {first.what}s"
         groups.append(Group(first.how, label, detail, tuple(m.subject for m in members)))
     return groups
 
