@@ -20,13 +20,13 @@ def test_verify_reference_exits_zero() -> None:
 def test_verify_strict_fails_on_unrun(tmp_path: Path) -> None:
     """`--strict` exits 1 on any UNRUN (verification-semantics.md 7).
 
-    The reference no longer carries one — every routine it names is built — so the case is made
-    with an assertion that names an unbuilt routine.
+    The reference no longer carries one, so the case is made with an assertion that cannot run:
+    `leak_isolation` where both CDUs are down has no running load a leak could stop.
     """
     path = tmp_path / "unrun.yaml"
     path.write_text(
         REFERENCE.read_text(encoding="utf-8")
-        + "  - {id: C-99, check: leak_isolation, args: {}, modes: [normal]}\n",
+        + "  - {id: C-99, check: leak_isolation, args: {}, modes: [facility-loss]}\n",
         encoding="utf-8",
     )
     assert runner.invoke(app, ["verify", str(path)]).exit_code == 0
