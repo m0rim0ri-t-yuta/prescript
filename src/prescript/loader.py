@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from prescript.ir import (
     DEVICE_KINDS,
@@ -48,6 +48,29 @@ _STEP_KEYS = {"id", "action", "set", "after_s", "within_s", "done_when"}
 # Everything in a cooling loop carries ratings, so provenance is mandatory on every node kind
 # (AGENTS.md -> "Provenance is mandatory").
 _RATED_KINDS = NODE_KINDS
+# Attribute names carry units, so their values are numbers; an undecided value is `null`
+# (docs/PRESCRIPT-LANGUAGE.md -> "Attribute names carry units"). A string here is a typo, and every
+# check coerces these with float(), so catching it at load time is the difference between a netlist
+# error and a crash halfway through a verification run.
+_NUMERIC_ATTRS = {
+    "approach_k",
+    "delta_t_k",
+    "dn_mm",
+    "dp_kpa",
+    "dp_lpm",
+    "heat_kw",
+    "k_fittings",
+    "kv_m3h",
+    "length_m",
+    "max_inlet_c",
+    "rating_kpa",
+    "rating_kw",
+    "rating_lpm",
+    "return_max_c",
+    "return_min_c",
+    "roughness_mm",
+    "volume_l",
+}
 
 
 class NetlistError(ValueError):
@@ -127,16 +150,41 @@ def _elaborate(
 # ----------------------------------------------------------------- conversion ---
 
 
+def _build[M: BaseModel](model: type[M], where: str, **fields: Any) -> M:
+    """Build an IR model, reporting pydantic's complaint as a netlist error.
+
+    Every malformed netlist must leave the loader as a `NetlistError`: a `ValidationError` that
+    escapes reaches the user as a traceback and, from the CLI, as the exit code that means FAIL.
+    """
+    try:
+        return model(**fields)
+    except ValidationError as exc:
+        raise NetlistError(f"{where}: {exc}") from exc
+
+
+def _numeric_attrs(attrs: dict[str, Any], where: str) -> None:
+    """A unit-carrying attribute holds a number or `null` — never a string that looks like one.
+
+    `null` passes on purpose: an undecided value is `null`, and a check that touches one returns
+    UNRUN (agent-config/rules/verification-semantics.md).
+    """
+    for key in sorted(attrs.keys() & _NUMERIC_ATTRS):
+        value = attrs[key]
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            raise NetlistError(f"{where}: {key} must be a number or null, not {value!r}")
+        if not math.isfinite(value):
+            raise NetlistError(f"{where}: {key} must be a finite number, not {value!r}")
+
+
 def _to_fluid(name: str, raw: dict[str, Any]) -> Fluid:
     if not raw.get("provenance"):
         raise NetlistError(f"fluid {name}: provenance is mandatory")
     unknown = set(raw) - {"cp_kj_kgk", "density_kg_l", "viscosity_mpas", "provenance"}
     if unknown:
         raise NetlistError(f"fluid {name}: unknown keys {sorted(unknown)}")
-    try:
-        return Fluid(name=name, **raw)
-    except ValidationError as exc:
-        raise NetlistError(f"fluid {name}: {exc}") from exc
+    return _build(Fluid, f"fluid {name}", name=name, **raw)
 
 
 def _to_spec(name: str, raw: dict[str, Any]) -> SpecTable:
@@ -158,7 +206,9 @@ def _to_spec(name: str, raw: dict[str, Any]) -> SpecTable:
         rows[row_id] = {k: v for k, v in row.items() if k != "id"}
     if not rows:
         raise NetlistError(f"spec table {name}: no rows")
-    return SpecTable(name=name, rows=rows, provenance=str(raw["provenance"]))
+    return _build(
+        SpecTable, f"spec table {name}", name=name, rows=rows, provenance=str(raw["provenance"])
+    )
 
 
 def _to_node(raw: dict[str, Any], origin: str | None) -> Node:
@@ -169,17 +219,17 @@ def _to_node(raw: dict[str, Any], origin: str | None) -> Node:
     if raw["kind"] in _RATED_KINDS and not raw.get("provenance"):
         raise NetlistError(f"node {raw['id']}: provenance is mandatory for kind '{raw['kind']}'")
     attrs = {k: v for k, v in raw.items() if k not in _NODE_KEYS}
-    try:
-        return Node(
-            id=str(raw["id"]),
-            kind=raw["kind"],
-            attrs=attrs,
-            state=raw.get("state"),
-            provenance=raw.get("provenance"),
-            origin=origin,
-        )
-    except ValidationError as exc:
-        raise NetlistError(f"node {raw['id']}: {exc}") from exc
+    _numeric_attrs(attrs, f"node {raw['id']}")
+    return _build(
+        Node,
+        f"node {raw['id']}",
+        id=str(raw["id"]),
+        kind=raw["kind"],
+        attrs=attrs,
+        state=raw.get("state"),
+        provenance=raw.get("provenance"),
+        origin=origin,
+    )
 
 
 def _to_device(raw: dict[str, Any], edge_label: str) -> Device:
@@ -191,16 +241,16 @@ def _to_device(raw: dict[str, Any], edge_label: str) -> Device:
     if state not in _VALVE_STATES:
         raise NetlistError(f"device {raw['id']}: state must be open or closed, not '{state}'")
     attrs = {k: v for k, v in raw.items() if k not in _DEVICE_KEYS}
-    try:
-        return Device(
-            id=str(raw["id"]),
-            kind=raw["kind"],
-            attrs=attrs,
-            state=state,
-            provenance=raw.get("provenance"),
-        )
-    except ValidationError as exc:
-        raise NetlistError(f"device {raw['id']}: {exc}") from exc
+    _numeric_attrs(attrs, f"device {raw['id']}")
+    return _build(
+        Device,
+        f"device {raw['id']}",
+        id=str(raw["id"]),
+        kind=raw["kind"],
+        attrs=attrs,
+        state=state,
+        provenance=raw.get("provenance"),
+    )
 
 
 def _to_edge(raw: dict[str, Any], origin: str | None = None) -> Edge:
@@ -213,7 +263,9 @@ def _to_edge(raw: dict[str, Any], origin: str | None = None) -> Edge:
     unknown = set(raw) - {"from", "to", "via", "share", "bidirectional", "role"}
     if unknown:
         raise NetlistError(f"edge {label}: unknown keys {sorted(unknown)}")
-    return Edge(
+    return _build(
+        Edge,
+        f"edge {label}",
         src=src,
         dst=dst,
         via=via,
@@ -236,7 +288,9 @@ def _to_assertion(raw: dict[str, Any], mode_names: set[str]) -> Assertion:
         if m not in mode_names and m not in (STATIC_MODE, META_MODE):
             raise NetlistError(f"assertion {raw.get('id')}: unknown mode '{m}'")
     severity = raw.get("severity", "error")
-    return Assertion(
+    return _build(
+        Assertion,
+        f"assertion {raw.get('id')}",
         id=str(raw["id"]),
         check=str(raw["check"]),
         args=raw.get("args") or {},
@@ -271,7 +325,12 @@ def _to_assumption(raw: Any, where: str) -> Assumption:
         raise NetlistError(f"{where}: done_when needs assume: <what is assumed>")
     if not raw.get("provenance"):
         raise NetlistError(f"{where}: done_when: provenance is mandatory")
-    return Assumption(assume=raw["assume"], provenance=str(raw["provenance"]))
+    return _build(
+        Assumption,
+        f"{where}: done_when",
+        assume=raw["assume"],
+        provenance=str(raw["provenance"]),
+    )
 
 
 def _to_step(procedure: str, raw: Any, node_ids: set[str], device_ids: set[str]) -> Step:
@@ -302,7 +361,9 @@ def _to_step(procedure: str, raw: Any, node_ids: set[str], device_ids: set[str])
                 f"{where}: {target} cannot be set to '{state}' (one of {sorted(allowed)})"
             )
     done_when = raw.get("done_when")
-    return Step(
+    return _build(
+        Step,
+        where,
         id=step_id,
         action=action,
         set={str(k): str(v) for k, v in targets.items()},
@@ -344,7 +405,9 @@ def _to_procedure(
     holds = raw.get("holds") or []
     if not isinstance(holds, list):
         raise NetlistError(f"{where}: holds must be a list of assertion ids")
-    return Procedure(
+    return _build(
+        Procedure,
+        where,
         name=name,
         from_mode=from_mode,
         intent=intent,
@@ -426,9 +489,23 @@ def _validate(design: Design) -> None:
 # --------------------------------------------------------------------- public ---
 
 
+def _yaml_reason(exc: yaml.YAMLError) -> str:
+    """One line out of a YAML error: what it tripped on, and where."""
+    problem = getattr(exc, "problem", None) or str(exc).splitlines()[0]
+    mark = getattr(exc, "problem_mark", None)
+    where = f" (line {mark.line + 1}, column {mark.column + 1})" if mark is not None else ""
+    return f"{problem}{where}"
+
+
 def load_design(path: str | Path) -> Design:
     with open(path, encoding="utf-8") as fh:
-        doc = yaml.load(fh, Loader=_Yaml12BoolLoader)  # SafeLoader subclass
+        try:
+            doc = yaml.load(fh, Loader=_Yaml12BoolLoader)  # SafeLoader subclass
+        except yaml.YAMLError as exc:
+            # A file that is not YAML is a malformed netlist like any other, and the loader owes
+            # its caller one exception type. `YAMLError` is not a `NetlistError`, so without this
+            # it escapes as a traceback.
+            raise NetlistError(f"{path}: not valid YAML: {_yaml_reason(exc)}") from exc
     return parse_design(doc)
 
 
