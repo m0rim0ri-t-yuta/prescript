@@ -56,7 +56,7 @@ blocks:
     # stated flow, and the Kv of each branch valve.
     params: {heat_kw: 150, delta_t_k: 10, max_inlet_c: 45, manifold_lpm: 300, manifold_dp_kpa: 30,
              rack_dp_kpa: 100, rack_dp_lpm: 230, branch_kv: 60,
-             manifold_volume_l: 20, rack_volume_l: 60}
+             manifold_volume_l: 24, rack_volume_l: 60}
     provenance: "NVIDIA RA RA11338001: ~1.2 MW IT across 8 racks. Cooling figures assumed (S-21)."
     expands_to:
       - {id: "MAN-A-{n}", kind: manifold, rating_lpm: "{manifold_lpm}", dp_kpa: "{manifold_dp_kpa}", dp_lpm: "{manifold_lpm}", volume_l: "{manifold_volume_l}", ports: 8, side: A, fluid: pg25}
