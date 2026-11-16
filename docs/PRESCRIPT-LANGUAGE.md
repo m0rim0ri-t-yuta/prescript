@@ -58,6 +58,14 @@ Manifolds: `rating_lpm`, `side: A|B`. Elsewhere the side is read from a whole `-
 Pressure drop of equipment (CDU exchanger, manifold, rack, rdhx) is a rated point: `dp_kpa` at a flow
 of `dp_lpm`. At another flow it scales with the square of the flow.
 
+Dynamics, read only by `prescript sim` (`docs/SIMULATION.md`); a `null` makes the simulation or the
+judgement that needs it `UNRUN`. Pumps: `shutoff_kpa` (head at zero flow; with `rating_kpa` at
+`rating_lpm` it fixes a quadratic curve), `npshr_m` (NPSH required at `rating_lpm`), `ramp_s` (speed
+time constant on a start or stop). CDUs: `fill_kpa` (expansion-tank gauge pressure at the CDU
+inlet), `facility_lpm` (facility-water flow with its valve fully open), `supply_c` (secondary
+supply setpoint). Headers: `wave_speed_m_s` (pressure-wave speed), `design_kpa` (design pressure,
+gauge). Valves: `stroke_s` (full stroke time; absent means instantaneous).
+
 Coolant inventory, which `ride_through` counts, is `volume_l` on every element. A header states no
 `volume_l`: its volume is its `dn_mm` bore over its `length_m` run, so it is geometry, not a second
 number to keep in step.

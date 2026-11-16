@@ -61,7 +61,7 @@ reports facts — whether a change breaks an assertion is `verify`'s answer.
 | `prescript/report.py`  | Cooling on the core: adds the `done_when` assumptions to the core's output |
 | `prescript/diff.py`    | Two elaborated designs → a change list; text, Markdown, JSON            |
 | `prescript/draw.py`    | IR → loop diagram (SVG): columns from the CDU, return lanes; procedure storyboard |
-| `prescript/sim/`       | Plant model, PID, UVM-style testbench and its report (`SIMULATION.md`)   |
+| `prescript/sim/`       | Plant models (Phase 1 hand-written, Phase 2 from the netlist), PID, UVM-style testbench, report (`SIMULATION.md`) |
 | `prescript/cli.py`     | `verify`, `elaborate`, `diff`, `draw`, `sim`                            |
 
 ### 3.1 The core and its domains
@@ -96,9 +96,10 @@ The cooling domain sits on the core like any other: `engine.py` and `report.py` 
    inside its rating, does every rack get its share, and can the pump push it?" with the
    steady-state sensible-heat balance `Q = V · rho · cp · dT`, a rating-limited flow balance and a
    1-D pressure-drop screening — each method named in its results. Solving the network and the
-   pump curve come later, and only with a defensible method. Transient behaviour is a separate
-   stage, `prescript sim` (`SIMULATION.md`): a lumped plant model driven by a UVM-style testbench,
-   after the static checks and never instead of them. Industry
+   pump curve stay out of the static checks. Transient behaviour is a separate stage,
+   `prescript sim` (`SIMULATION.md`): the netlist's own network and a lumped heat model, driven by a
+   UVM-style testbench — a procedure's steps on a time axis — after the static checks and never
+   instead of them. Industry
    simulators are export targets, not something Prescript re-implements.
 4. **The facility loop is a boundary condition.** The scope is the technology cooling loop (TCS)
    on the rack side of the CDU, because that is what a retrofit changes. What the facility water
