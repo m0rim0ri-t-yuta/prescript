@@ -14,8 +14,9 @@ from prescript.draw import storyboard, storyboard_html, to_svg
 from prescript.ir import Design
 from prescript.loader import NetlistError, load_design
 from prescript.result import Status
-from prescript.sim import poc
+from prescript.sim import mvp, netreport, poc
 from prescript.sim import report as sim_report
+from prescript.sim.netbench import Bench, Event, ScenarioSequence
 from prescript.sim.uvm import Constraints, StepSequence
 
 app = typer.Typer(
@@ -155,15 +156,42 @@ def _draw_procedure(design: Design, name: str, out: Path | None) -> None:
 
 @app.command()
 def sim(
+    netlist: Annotated[
+        Path | None,
+        typer.Argument(
+            exists=True,
+            dir_okay=False,
+            help="netlist.yaml: run the Phase 2 testbench built from it. Without one, Phase 1.",
+        ),
+    ] = None,
     seed: Annotated[int, typer.Option(help="Seed for the constrained-random sequence.")] = 1,
-    runs: Annotated[int, typer.Option(min=1, help="Scenarios to run.")] = 20,
+    runs: Annotated[
+        int | None,
+        typer.Option(min=0, help="Random scenarios (Phase 1: 20; Phase 2: 5 after run-00)."),
+    ] = None,
+    mode: Annotated[
+        str | None,
+        typer.Option("--mode", "-m", help="Phase 2: the operating mode to start from."),
+    ] = None,
     max_heat_kw: Annotated[
         float | None,
-        typer.Option(help="Widen (or narrow) the heat envelope's upper bound, kW."),
+        typer.Option(help="Phase 1: widen (or narrow) the heat envelope's upper bound, kW."),
+    ] = None,
+    trace: Annotated[
+        Path | None, typer.Option(help="Phase 2: write run-00's sampled trace here (CSV).")
+    ] = None,
+    plot: Annotated[
+        Path | None, typer.Option(help="Phase 2: draw run-00's trace here (SVG).")
     ] = None,
     verbose: Annotated[bool, typer.Option("--verbose", "-v")] = False,
 ) -> None:
-    """Run the Phase 1 testbench (one exchanger, one PID valve) on random load steps."""
+    """Run the dynamic testbench: Phase 2 on a netlist's own loop, or Phase 1 without one."""
+    if netlist is not None:
+        _sim_netlist(netlist, seed, 5 if runs is None else runs, mode, trace, plot, verbose)
+        return
+    if mode is not None or trace is not None or plot is not None:
+        typer.echo("sim error: --mode, --trace and --plot need a netlist", err=True)
+        raise typer.Exit(2)
     envelope = poc.ENVELOPE
     if max_heat_kw is not None:
         try:
@@ -175,8 +203,44 @@ def sim(
         except ValueError as exc:
             typer.echo(f"sim error: {exc}", err=True)
             raise typer.Exit(2) from exc
-    done = [poc.BENCH.run(item) for item in StepSequence(envelope, seed, runs)]
+    count = 20 if runs is None else max(runs, 1)
+    done = [poc.BENCH.run(item) for item in StepSequence(envelope, seed, count)]
     typer.echo(sim_report.to_text(done, seed, envelope, verbose=verbose))
+    failed = any(r.status is Status.FAIL for run in done for r in run.results)
+    raise typer.Exit(1 if failed else 0)
+
+
+def _sim_netlist(
+    netlist: Path,
+    seed: int,
+    runs: int,
+    mode: str | None,
+    trace: Path | None,
+    plot: Path | None,
+    verbose: bool,
+) -> None:
+    design = _load(netlist)
+    start = mode or "normal"
+    if start not in design.modes:
+        known = ", ".join(design.modes) or "none"
+        typer.echo(f"unknown mode: {start} (modes in this netlist: {known})", err=True)
+        raise typer.Exit(2)
+    events: tuple[Event, ...] = ()
+    title = f"from {start}, seed {seed}, run-00 + {runs} random"
+    bench = Bench(design, mvp.CONTROLS)
+    done = [
+        bench.run(sc) for sc in ScenarioSequence(design, start, events, mvp.ENVELOPE, seed, runs)
+    ]
+    net = None if bench.problem else bench.net
+    typer.echo(netreport.to_text(done, design, net, title, verbose=verbose))
+    nominal = done[0]
+    if net is not None and nominal.trace is not None:
+        if trace is not None:
+            trace.write_text(netreport.to_csv(design, net, nominal.trace), encoding="utf-8")
+            typer.echo(f"wrote {trace}", err=True)
+        if plot is not None:
+            plot.write_text(netreport.to_svg(design, net, nominal), encoding="utf-8")
+            typer.echo(f"wrote {plot}", err=True)
     failed = any(r.status is Status.FAIL for run in done for r in run.results)
     raise typer.Exit(1 if failed else 0)
 
