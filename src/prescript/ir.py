@@ -89,6 +89,7 @@ class Edge(_Model):
     share: float | None = None
     bidirectional: bool = False
     role: str | None = None
+    origin: str | None = None  # "<block>[<instance args>]" when produced by elaboration
 
 
 class SpecTable(_Model):

@@ -29,12 +29,12 @@ C-08  n_minus_1      PASS
 C-09  pressure_drop  PASS                                                        PASS
 C-10  balance        PASS                                                        PASS
 ...
-PASS 31 · FAIL 0 · WARN 1 · UNRUN 1
+PASS 33 · FAIL 0 · WARN 0 · UNRUN 0
 ```
 
 `UNRUN` is deliberate: a check that touches an undecided (`null`) rating, or that is not built yet,
-never reports `PASS`. Every `UNRUN` above is a routine that is not built yet; an assertion is not
-asked for in a mode where it could never mean anything.
+never reports `PASS`. The reference design has none left — every routine it names is built — and an
+assertion is not asked for in a mode where it could never mean anything.
 
 The same netlist as a picture — one operating mode's states on the loop:
 
@@ -62,6 +62,7 @@ headers, in the numbers.
 | SVA assertions           | `assertions:` — closed loop, dual path, loading, …  |
 | Functional coverage      | assertion × mode coverage                           |
 | Regression in CI         | `prescript verify` comment on every PR              |
+| Revision diff            | `prescript diff` — what an edit really changed      |
 | Schematic view           | `prescript draw` — the netlist as a loop diagram    |
 | UVM testbench            | `prescript sim` — random load steps on a plant model |
 
