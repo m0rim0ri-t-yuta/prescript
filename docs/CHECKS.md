@@ -15,6 +15,7 @@ Status rules for every routine: `agent-config/rules/verification-semantics.md`.
 | `return_temp`  | `kinds` (default `[cdu]`)                         | the mixed return at every running CDU stays within `return_min_c`–`return_max_c` | no mode; no CDUs; the mode sets no `facility_supply_c`; nothing circulating; any null input |
 | `pressure_drop` | `method` (`darcy_weisbach`), `limit` (default 1.0), `available_kpa?` | every load's loop drops no more than `limit` × the head of the pump on it (or `available_kpa`) | no mode; unknown method; nothing circulating; any null input, or a supply leg with no pump |
 | `ride_through` | `class`, `must_exceed_s` | every loop that carries the class holds it for longer than `must_exceed_s` | no mode; no loads of `class`; no `must_exceed_s`; the mode sets no `loop_start_c`; any null inventory or load input |
+| `leak_isolation` | `class`, `sweep` (kinds; default the load kinds, loads filtered by `class`) | every swept element can be valved off without another running load losing its closed loop | no mode; nothing to sweep; no load has a closed loop in the mode |
 | `completeness` | `kinds`                                           | every element of `kinds` has non-null `rating_*` (+ `kv_m3h` on valves) | no element of `kinds`                            |
 | `consistency`  | `against` (a `spec` table), `fields`              | every row of the table agrees with the netlist on every field | no table of that name; no `fields`; a cell undecided on either side (with no disagreement found) |
 | `coverage`     | —                                                 | every non-meta assertion × mode cell ran (not `UNRUN`)                 | nothing to cover                                  |
@@ -107,8 +108,24 @@ A cell that is `null` on either side is an unanswered question, not a disagreeme
 `missing`. With nothing else to report that is `UNRUN`; next to a disagreement that is proven, the
 result stays `FAIL` and carries the uncomparable cells alongside the evidence.
 
+### How `leak_isolation` draws a ring of valves
+
+A leak drains both ways, so an element's isolation zone is everything joined to it by edges without
+a valve, followed in either direction. The valves on the edges that leave the zone are its ring.
+The mode is resolved again with every valve of the ring shut, and each load that had a closed loop
+before is asked the `loop_closed` question again. The swept element itself is expected to stop;
+any other load that loses its loop is collateral (`MAN-A-01: stops RACK-01`). A zone with a CDU
+inside cannot be closed by valves at all, so the leak could only be stopped by stopping the CDU
+(`HDR-R-A: no valve between it and CDU-A`).
+
+Only `kind: valve` bounds a zone: a check valve cannot be shut by hand. The valves are assumed to
+shut tight, one leak is considered at a time, and draining, refilling and valve stroke time are not
+judged. On the reference design each rack's ring is its four branch valves (`V-SA`, `V-SB`, `V-RA`,
+`V-RB`), and its zone takes in both of its manifolds, because nothing separates a manifold from
+its rack — so sweeping `manifold` instead of the racks fails: a leak on `MAN-A-01` also stops
+`RACK-01`, though that rack could still run on side B.
+
 ## Planned (return `UNRUN: not implemented`)
 
-| Routine          | Intent                                                                   | Milestone |
-| ---------------- | ------------------------------------------------------------------------ | --------- |
-| `leak_isolation` | Every branch can be isolated without stopping a load that is still running | W3       |
+None. Every routine the reference design names is built. A routine added to `PLANNED` in
+`checks/__init__.py` reports `UNRUN: not implemented` until it is.

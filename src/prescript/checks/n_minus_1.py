@@ -6,15 +6,15 @@ protects, and anything that carries no flow in this mode already (a standby pump
 side of a CDU that maintenance has taken out) — there is nothing there to drop, so stopping it
 could not change any result.
 
-The IR is frozen. Stopping an element builds a new `Mode` whose overrides are the states this
-mode had already resolved to, plus the one element set to `off`; the design itself is untouched.
+The IR is frozen. Stopping an element resolves the mode again with that element forced `off`
+(`_util.with_overrides`); the design itself is untouched.
 """
 
 from __future__ import annotations
 
-from prescript.checks._util import loop_break, targets
-from prescript.ir import LOAD_KINDS, NODE_KINDS, Assertion, Design, Mode, Node
-from prescript.modes import ModeState, resolve
+from prescript.checks._util import loop_break, targets, with_overrides
+from prescript.ir import LOAD_KINDS, NODE_KINDS, Assertion, Design, Node
+from prescript.modes import ModeState
 from prescript.result import Result, Status, unrun
 
 
@@ -36,16 +36,7 @@ def _sweep(design: Design, state: ModeState, kinds: set[str]) -> list[Node]:
 
 def _stopped(design: Design, state: ModeState, node_id: str) -> ModeState:
     """This mode with one more element stopped, resolved from scratch."""
-    overrides = {**state.node_state, **state.device_state, node_id: "off"}
-    return resolve(
-        design,
-        Mode(
-            name=f"{state.mode} -{node_id}",
-            overrides=overrides,
-            demand=state.demand,
-            conditions=state.conditions,
-        ),
-    )
+    return with_overrides(design, state, {node_id: "off"}, f"{state.mode} -{node_id}")
 
 
 def n_minus_1(design: Design, state: ModeState | None, a: Assertion) -> Result:

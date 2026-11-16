@@ -14,6 +14,8 @@ from prescript.checks.completeness import completeness
 from prescript.checks.consistency import consistency
 from prescript.checks.dual_path import dual_path
 from prescript.checks.inlet_temp import inlet_temp
+from prescript.checks.leak_isolation import METHOD as LEAK_METHOD
+from prescript.checks.leak_isolation import leak_isolation, zone
 from prescript.checks.loading import loading
 from prescript.checks.loop_closed import loop_closed
 from prescript.checks.n_minus_1 import n_minus_1
@@ -144,6 +146,90 @@ def test_n_minus_1_unrun_when_nothing_carries_flow(design: Design) -> None:
 def test_n_minus_1_unrun_for_empty_class(design: Design) -> None:
     r = n_minus_1(design, _state(design), _a("n_minus_1", **{"class": "nope"}))
     assert r.status is Status.UNRUN
+
+
+# --- leak_isolation -------------------------------------------------------------
+
+
+def test_leak_isolation_zone_of_a_rack_is_its_branch(design: Design) -> None:
+    """No valve between the manifolds and the rack, so they leak and are isolated together."""
+    inside, boundary = zone(design, "RACK-01")
+    assert inside == {"MAN-A-01", "MAN-B-01", "RACK-01"}
+    assert sorted(e.via.id for e in boundary if e.via) == [
+        "V-RA-01",
+        "V-RB-01",
+        "V-SA-01",
+        "V-SB-01",
+    ]
+
+
+@pytest.mark.parametrize("mode", ["normal", "maint-cdu-A", "maint-cdu-B"])
+def test_leak_isolation_pass_for_every_rack(design: Design, mode: str) -> None:
+    r = leak_isolation(design, _state(design, mode), _a("leak_isolation"))
+    assert r.status is Status.PASS, r.offending
+    assert r.detail == (
+        "8 it_liquid loads can each be valved off (up to 4 valves) without stopping any of "
+        f"9 running loads; {LEAK_METHOD}"
+    )
+
+
+def test_leak_isolation_fails_when_a_manifold_takes_its_rack_down(design: Design) -> None:
+    r = leak_isolation(design, _state(design), _a("leak_isolation", sweep=["manifold"]))
+    assert r.status is Status.FAIL
+    assert len(r.offending) == 16
+    assert "MAN-A-01: stops RACK-01" in r.offending
+
+
+def test_leak_isolation_fails_when_no_valve_separates_the_cdu(design: Design) -> None:
+    r = leak_isolation(design, _state(design), _a("leak_isolation", sweep=["header"]))
+    assert r.status is Status.FAIL
+    assert r.offending == (
+        "HDR-R-A: no valve between it and CDU-A",
+        "HDR-R-B: no valve between it and CDU-B",
+    )
+
+
+def test_leak_isolation_counts_the_other_side_as_collateral(design: Design) -> None:
+    """With CDU-A down, shutting the B supply header's ring stops the whole hall."""
+    r = leak_isolation(
+        design, _state(design, "maint-cdu-A"), _a("leak_isolation", sweep=["header"])
+    )
+    assert r.status is Status.FAIL
+    assert any(o.startswith("HDR-S-B: stops RACK-01, ") and "RDHX-01" in o for o in r.offending)
+
+
+def test_leak_isolation_fails_when_a_shared_branch_has_no_valves(doc: dict[str, Any]) -> None:
+    """Two racks behind one valve ring: a leak on either stops both."""
+    doc["edges"].append({"from": "MAN-A-01", "to": "RACK-02"})
+    d = parse_design(doc)
+    r = leak_isolation(d, _state(d), _a("leak_isolation"))
+    assert r.status is Status.FAIL
+    assert r.offending == ("RACK-01: stops RACK-02", "RACK-02: stops RACK-01")
+
+
+def test_leak_isolation_a_check_valve_does_not_bound_a_zone(doc: dict[str, Any]) -> None:
+    edges = doc["edges"]
+    edges.append(
+        {"from": "MAN-A-01", "to": "RACK-02", "via": {"id": "CV-1", "kind": "check_valve"}}
+    )
+    d = parse_design(doc)
+    assert "RACK-02" in zone(d, "RACK-01")[0]
+
+
+def test_leak_isolation_unrun_without_mode(design: Design) -> None:
+    assert leak_isolation(design, None, _a("leak_isolation")).status is Status.UNRUN
+
+
+def test_leak_isolation_unrun_when_nothing_runs(design: Design) -> None:
+    r = leak_isolation(design, _state(design, "facility-loss"), _a("leak_isolation"))
+    assert r.status is Status.UNRUN
+    assert "no load has a closed loop" in r.detail
+
+
+def test_leak_isolation_unrun_for_empty_class(design: Design) -> None:
+    r = leak_isolation(design, _state(design), _a("leak_isolation", **{"class": "nope"}))
+    assert r.status is Status.UNRUN
+    assert r.detail == "nothing to sweep: no nope loads"
 
 
 # --- dual_path ------------------------------------------------------------------
@@ -602,9 +688,10 @@ def test_completeness_unrun_for_unknown_kind(design: Design) -> None:
 # --- engine-level invariants -----------------------------------------------------
 
 
-def test_not_implemented_never_passes(doc: dict[str, Any]) -> None:
-    """Asserted against a routine that is still planned, so implementing one cannot break it."""
-    doc["assertions"].append({"id": "Z-00", "check": "leak_isolation", "modes": ["normal"]})
+def test_not_implemented_never_passes(doc: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every named routine is built now, so a planned one is made up here; the rule still holds."""
+    monkeypatch.setattr(engine, "PLANNED", frozenset({"future_check"}))
+    doc["assertions"].append({"id": "Z-00", "check": "future_check", "modes": ["normal"]})
     r = _result(engine.run(parse_design(doc)), "Z-00", "normal")
     assert r.status is Status.UNRUN and r.detail == "not implemented"
 

@@ -18,18 +18,18 @@ uv run prescript verify examples/gb200-1su/netlist.yaml
 ```
 
 ```
-id    check          normal  maint-cdu-A  maint-cdu-B  pump-fail-A  summer-peak  valve-shut-01  facility-loss  stop-cdu-A@s1  stop-cdu-A@s2  stop-cdu-A@s3  stop-cdu-A@s4  static  meta
-----  -------------  ------  -----------  -----------  -----------  -----------  -------------  -------------  -------------  -------------  -------------  -------------  ------  ----
-C-01  loop_closed    PASS                              PASS         PASS         PASS                          PASS           PASS           PASS           PASS
-C-02  dual_path      PASS                              PASS         PASS
-C-03  loop_closed            PASS         PASS
-C-05  loading        PASS    PASS         PASS         PASS         PASS         PASS                          PASS           PASS           PASS           PASS
-C-07  inlet_temp     PASS                                           PASS
-C-08  n_minus_1      PASS
-C-09  pressure_drop  PASS                                                        PASS
-C-10  balance        PASS                                                        PASS
+id    check           normal  maint-cdu-A  maint-cdu-B  pump-fail-A  summer-peak  valve-shut-01  facility-loss  stop-cdu-A@s1  stop-cdu-A@s2  stop-cdu-A@s3  stop-cdu-A@s4  static  meta
+----  --------------  ------  -----------  -----------  -----------  -----------  -------------  -------------  -------------  -------------  -------------  -------------  ------  ----
+C-01  loop_closed     PASS                              PASS         PASS         PASS                          PASS           PASS           PASS           PASS
+C-02  dual_path       PASS                              PASS         PASS
+C-03  loop_closed             PASS         PASS
+C-05  loading         PASS    PASS         PASS         PASS         PASS         PASS                          PASS           PASS           PASS           PASS
+C-07  inlet_temp      PASS                                           PASS
+C-08  n_minus_1       PASS
+C-09  pressure_drop   PASS                                                        PASS
+C-10  balance         PASS                                                        PASS
 ...
-PASS 45 · FAIL 0 · WARN 0 · UNRUN 0
+PASS 48 · FAIL 0 · WARN 0 · UNRUN 0
 assumed  stop-cdu-A@s1  standby start inhibited at the controller (provenance: assumed)
 assumed  stop-cdu-A@s2  loss of pump running feedback (provenance: assumed)
 ```

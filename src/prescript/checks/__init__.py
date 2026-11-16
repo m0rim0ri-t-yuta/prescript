@@ -14,6 +14,7 @@ from prescript.checks.completeness import completeness
 from prescript.checks.consistency import consistency
 from prescript.checks.dual_path import dual_path
 from prescript.checks.inlet_temp import inlet_temp
+from prescript.checks.leak_isolation import leak_isolation
 from prescript.checks.loading import loading
 from prescript.checks.loop_closed import loop_closed
 from prescript.checks.n_minus_1 import n_minus_1
@@ -32,6 +33,7 @@ REGISTRY: dict[str, Check] = {
     "consistency": consistency,
     "dual_path": dual_path,
     "inlet_temp": inlet_temp,
+    "leak_isolation": leak_isolation,
     "loading": loading,
     "loop_closed": loop_closed,
     "n_minus_1": n_minus_1,
@@ -41,8 +43,4 @@ REGISTRY: dict[str, Check] = {
 }
 
 # Named in the reference design but not built yet. They return UNRUN, never PASS.
-PLANNED: frozenset[str] = frozenset(
-    {
-        "leak_isolation",
-    }
-)
+PLANNED: frozenset[str] = frozenset()
