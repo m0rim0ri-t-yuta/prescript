@@ -76,3 +76,26 @@ def test_draw_writes_svg_to_stdout() -> None:
 def test_draw_unknown_mode_exits_two() -> None:
     res = runner.invoke(app, ["draw", str(REFERENCE), "--mode", "no-such-mode"])
     assert res.exit_code == 2
+
+
+def test_a_malformed_netlist_exits_two_with_one_line(tmp_path: Path) -> None:
+    """Exit 1 means "a check failed". A netlist the loader cannot read exits 2, so CI can tell a
+    red design from an unreadable one (#49)."""
+    path = tmp_path / "broken.yaml"
+    path.write_text("prescript: 0.2\nunits: {\n", encoding="utf-8")
+    res = runner.invoke(app, ["verify", str(path)])
+    assert res.exit_code == 2, res.output
+    assert res.output.startswith("netlist error: ")
+    assert res.output.strip().count("\n") == 0, res.output
+
+
+def test_a_mistyped_rating_exits_two_instead_of_crashing(tmp_path: Path) -> None:
+    """It used to load and then crash in a check with exit 1 (#54)."""
+    path = tmp_path / "mistyped.yaml"
+    path.write_text(
+        REFERENCE.read_text(encoding="utf-8").replace("rating_lpm: 2300", 'rating_lpm: "oops"'),
+        encoding="utf-8",
+    )
+    res = runner.invoke(app, ["verify", str(path)])
+    assert res.exit_code == 2, res.output
+    assert "must be a number or null" in res.output
