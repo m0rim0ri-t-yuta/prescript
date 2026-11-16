@@ -11,8 +11,8 @@ from __future__ import annotations
 import re
 from collections import deque
 
-from prescript.ir import LOAD_KINDS, SOURCE_KINDS, Design, Edge, Node
-from prescript.modes import ModeState
+from prescript.ir import LOAD_KINDS, SOURCE_KINDS, Design, Edge, Mode, Node
+from prescript.modes import ModeState, resolve
 
 Basis = str  # "flow" (L/min) or "heat" (kW)
 
@@ -68,6 +68,20 @@ def loop_break(design: Design, state: ModeState, load: Node, via: str | None = N
     if via is not None and via not in reach:
         return f"loop does not pass {via}"
     return None
+
+
+def with_overrides(design: Design, state: ModeState, extra: dict[str, str], name: str) -> ModeState:
+    """This mode with more states forced, resolved from scratch under the name `name`.
+
+    The IR is frozen, so this builds a new `Mode` whose overrides are the states this mode had
+    already resolved to plus `extra`; the design itself is untouched. Shared by `n_minus_1` (one
+    element `off`) and `leak_isolation` (a ring of valves `closed`).
+    """
+    overrides = {**state.node_state, **state.device_state, **extra}
+    return resolve(
+        design,
+        Mode(name=name, overrides=overrides, demand=state.demand, conditions=state.conditions),
+    )
 
 
 def load_quantity(

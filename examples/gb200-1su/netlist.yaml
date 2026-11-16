@@ -222,3 +222,6 @@ assertions:
   - {id: C-13, check: consistency,   args: {against: "02_Loads", fields: [heat_kw, delta_t_k, max_inlet_c]}, modes: [static]}
   - {id: C-14, check: completeness,  args: {kinds: [cdu, pump, header, manifold, valve]},       modes: [static], severity: warn}
   - {id: C-15, check: coverage,      args: {modes: all, assertions: [C-01, C-05]},              modes: [meta], severity: warn}
+  # C-16: a leak on any rack branch is valved off by its own ring (V-SA/SB/RA/RB-nn) and stops no
+  # other load — including while one CDU is down for maintenance.
+  - {id: C-16, check: leak_isolation, args: {class: it_liquid},                                modes: [normal, maint-cdu-A, maint-cdu-B]}
