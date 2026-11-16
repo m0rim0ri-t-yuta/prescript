@@ -1,10 +1,11 @@
-"""Load a Prescript netlist (YAML, grammar v0.2) and elaborate it into the IR.
+"""Load a Prescript netlist (YAML, grammar v0.2 or v0.3) and elaborate it into the IR.
 
 Grammar SSOT: docs/PRESCRIPT-LANGUAGE.md. This module implements it; change both together.
 """
 
 from __future__ import annotations
 
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -18,20 +19,32 @@ from prescript.ir import (
     NODE_KINDS,
     STATIC_MODE,
     Assertion,
+    Assumption,
     Design,
     Device,
     Edge,
     Fluid,
     Mode,
     Node,
+    Procedure,
     SpecTable,
+    Step,
 )
 
-SUPPORTED_GRAMMAR = {"0.2"}
+SUPPORTED_GRAMMAR = {"0.2", "0.3"}
+# `procedures:` arrived in v0.3; a v0.2 netlist that uses it is declaring the wrong grammar.
+_PROCEDURE_GRAMMAR = {"0.3"}
 _PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _NODE_KEYS = {"id", "kind", "state", "provenance"}
 _DEVICE_KEYS = {"id", "kind", "state", "provenance"}
 _VALVE_STATES = {"open", "closed"}
+_NODE_STATES = {"on", "off", "standby"}
+# A procedure step elaborates into the mode "<procedure>@<step id>", so `@` is reserved in mode
+# names, and procedure names and step ids stay to a character set that is also a safe file name.
+_STEP_SEP = "@"
+_NAME = re.compile(r"[A-Za-z0-9_-]+")
+_PROCEDURE_KEYS = {"from", "intent", "holds", "steps"}
+_STEP_KEYS = {"id", "action", "set", "after_s", "within_s", "done_when"}
 # Everything in a cooling loop carries ratings, so provenance is mandatory on every node kind
 # (AGENTS.md -> "Provenance is mandatory").
 _RATED_KINDS = NODE_KINDS
@@ -232,6 +245,159 @@ def _to_assertion(raw: dict[str, Any], mode_names: set[str]) -> Assertion:
     )
 
 
+# ----------------------------------------------------------------- procedures ---
+
+
+def _seconds(value: Any, where: str) -> float | None:
+    if value is None:
+        return None
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int | float)
+        or not math.isfinite(value)
+        or value <= 0
+    ):
+        raise NetlistError(f"{where}: must be a number of seconds > 0, not {value!r}")
+    return float(value)
+
+
+def _to_assumption(raw: Any, where: str) -> Assumption:
+    if not isinstance(raw, dict):
+        raise NetlistError(f"{where}: done_when must be a mapping {{assume, provenance}}")
+    unknown = set(raw) - {"assume", "provenance"}
+    if unknown:
+        raise NetlistError(f"{where}: done_when has unknown keys {sorted(unknown)}")
+    if not isinstance(raw.get("assume"), str) or not raw["assume"]:
+        raise NetlistError(f"{where}: done_when needs assume: <what is assumed>")
+    if not raw.get("provenance"):
+        raise NetlistError(f"{where}: done_when: provenance is mandatory")
+    return Assumption(assume=raw["assume"], provenance=str(raw["provenance"]))
+
+
+def _to_step(procedure: str, raw: Any, node_ids: set[str], device_ids: set[str]) -> Step:
+    if not isinstance(raw, dict) or "id" not in raw:
+        raise NetlistError(f"procedure {procedure}: every step needs an id: {raw}")
+    step_id = str(raw["id"])
+    where = f"procedure {procedure} step {step_id}"
+    if not _NAME.fullmatch(step_id):
+        raise NetlistError(f"{where}: a step id may use only letters, digits, '_' and '-'")
+    unknown = set(raw) - _STEP_KEYS
+    if unknown:
+        raise NetlistError(f"{where}: unknown keys {sorted(unknown)}")
+    action = raw.get("action")
+    if not isinstance(action, str) or not action:
+        raise NetlistError(f"{where}: action is required")
+    targets = raw.get("set")
+    if not isinstance(targets, dict) or not targets:
+        raise NetlistError(f"{where}: set must be a non-empty map of id -> state")
+    for target, state in targets.items():
+        if target in node_ids:
+            allowed = _NODE_STATES
+        elif target in device_ids:
+            allowed = _VALVE_STATES
+        else:
+            raise NetlistError(f"{where}: set targets unknown id '{target}'")
+        if not isinstance(state, str) or state not in allowed:
+            raise NetlistError(
+                f"{where}: {target} cannot be set to '{state}' (one of {sorted(allowed)})"
+            )
+    done_when = raw.get("done_when")
+    return Step(
+        id=step_id,
+        action=action,
+        set={str(k): str(v) for k, v in targets.items()},
+        mode=f"{procedure}{_STEP_SEP}{step_id}",
+        after_s=_seconds(raw.get("after_s"), f"{where}: after_s"),
+        within_s=_seconds(raw.get("within_s"), f"{where}: within_s"),
+        done_when=None if done_when is None else _to_assumption(done_when, where),
+    )
+
+
+def _to_procedure(
+    name: str, raw: Any, modes: dict[str, Mode], node_ids: set[str], device_ids: set[str]
+) -> Procedure:
+    where = f"procedure {name}"
+    if not _NAME.fullmatch(name):
+        raise NetlistError(f"{where}: a procedure name may use only letters, digits, '_' and '-'")
+    if not isinstance(raw, dict):
+        raise NetlistError(f"{where}: must be a mapping")
+    unknown = set(raw) - _PROCEDURE_KEYS
+    if unknown:
+        raise NetlistError(f"{where}: unknown keys {sorted(unknown)}")
+    if raw.get("from") is None:
+        raise NetlistError(f"{where}: from is required (the mode the procedure starts in)")
+    from_mode = str(raw["from"])
+    if from_mode not in modes:
+        raise NetlistError(f"{where}: from names unknown mode '{from_mode}'")
+    intent = raw.get("intent")
+    if intent is not None and not isinstance(intent, str):
+        raise NetlistError(f"{where}: intent must be a string")
+    raw_steps = raw.get("steps")
+    if not isinstance(raw_steps, list) or not raw_steps:
+        raise NetlistError(f"{where}: steps must be a non-empty list")
+    steps: list[Step] = []
+    for raw_step in raw_steps:
+        step = _to_step(name, raw_step, node_ids, device_ids)
+        if any(s.id == step.id for s in steps):
+            raise NetlistError(f"{where}: duplicate step id '{step.id}'")
+        steps.append(step)
+    holds = raw.get("holds") or []
+    if not isinstance(holds, list):
+        raise NetlistError(f"{where}: holds must be a list of assertion ids")
+    return Procedure(
+        name=name,
+        from_mode=from_mode,
+        intent=intent,
+        steps=tuple(steps),
+        holds=tuple(str(h) for h in holds),
+    )
+
+
+def _step_modes(procedure: Procedure, start: Mode) -> list[Mode]:
+    """Each step as an ordinary mode: the start mode's overrides, then every step's `set` up to
+    and including this one, later steps winning. Demand and conditions are the start mode's."""
+    overrides = dict(start.overrides)
+    out: list[Mode] = []
+    for step in procedure.steps:
+        overrides.update(step.set)
+        out.append(
+            Mode(
+                name=step.mode,
+                overrides=dict(overrides),
+                demand=dict(start.demand),
+                conditions=dict(start.conditions),
+                note=f"{procedure.name} {step.id}: {step.action}",
+            )
+        )
+    return out
+
+
+def _apply_holds(
+    assertions: tuple[Assertion, ...], procedures: dict[str, Procedure]
+) -> tuple[Assertion, ...]:
+    """`holds:` names the assertion in every step of the procedure, after the modes it had."""
+    by_id = {a.id: a for a in assertions}
+    extra: dict[str, list[str]] = {}
+    for procedure in procedures.values():
+        for aid in procedure.holds:
+            if aid not in by_id:
+                raise NetlistError(
+                    f"procedure {procedure.name}: holds names unknown assertion '{aid}'"
+                )
+            pseudo = [m for m in by_id[aid].modes if m in (STATIC_MODE, META_MODE)]
+            if pseudo:
+                raise NetlistError(
+                    f"procedure {procedure.name}: holds names assertion '{aid}', which runs on "
+                    f"'{pseudo[0]}', not per operating mode"
+                )
+            extra.setdefault(aid, []).extend(s.mode for s in procedure.steps)
+    out: list[Assertion] = []
+    for a in assertions:
+        added = tuple(m for m in dict.fromkeys(extra.get(a.id, [])) if m not in a.modes)
+        out.append(a.model_copy(update={"modes": a.modes + added}) if added else a)
+    return tuple(out)
+
+
 # ----------------------------------------------------------------- validation ---
 
 
@@ -286,22 +452,45 @@ def parse_design(doc: dict[str, Any]) -> Design:
     hand_written = [(e, None) for e in (doc.get("edges") or [])]
     edges = [_to_edge(raw, origin) for raw, origin in [*block_edges, *hand_written]]
 
-    modes = {
-        str(name): Mode(
+    modes: dict[str, Mode] = {}
+    for name, body in (doc.get("modes") or {}).items():
+        if _STEP_SEP in str(name):
+            raise NetlistError(
+                f"mode {name}: '{_STEP_SEP}' is reserved for procedure steps (<procedure>@<step>)"
+            )
+        modes[str(name)] = Mode(
             name=str(name),
             overrides=body.get("overrides") or {},
             demand=body.get("demand") or {},
             conditions=body.get("conditions") or {},
             note=body.get("note"),
         )
-        for name, body in (doc.get("modes") or {}).items()
-    }
+
+    procedures: dict[str, Procedure] = {}
+    if "procedures" in doc:
+        if grammar not in _PROCEDURE_GRAMMAR:
+            raise NetlistError(
+                f"procedures: needs prescript: 0.3; this netlist declares prescript: {grammar}"
+            )
+        raw_procedures = doc.get("procedures") or {}
+        if not isinstance(raw_procedures, dict):
+            raise NetlistError("procedures: must be a mapping of procedure name -> procedure")
+        node_ids = set(nodes)
+        device_ids = {e.via.id for e in edges if e.via is not None}
+        hand_written_modes = dict(modes)
+        for name, body in raw_procedures.items():
+            procedure = _to_procedure(str(name), body, hand_written_modes, node_ids, device_ids)
+            procedures[procedure.name] = procedure
+            for mode in _step_modes(procedure, hand_written_modes[procedure.from_mode]):
+                modes[mode.name] = mode
+
     assertions = tuple(_to_assertion(a, set(modes)) for a in doc.get("assertions") or [])
     seen: set[str] = set()
     for a in assertions:
         if a.id in seen:
             raise NetlistError(f"duplicate assertion id '{a.id}'")
         seen.add(a.id)
+    assertions = _apply_holds(assertions, procedures)
 
     try:
         design = Design(
@@ -314,6 +503,7 @@ def parse_design(doc: dict[str, Any]) -> Design:
             edges=tuple(edges),
             modes=modes,
             assertions=assertions,
+            procedures=procedures,
         )
     except ValidationError as exc:
         raise NetlistError(str(exc)) from exc

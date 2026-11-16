@@ -8,7 +8,7 @@ drawings and spreadsheets, checked by hand — while the hall they are being fit
 running. Prescript applies the HDL regression loop to the cooling loop: write the design as a
 netlist, declare what must hold in every operating mode, and let CI tell you on each pull request.
 
-> Status: winter PoC, grammar v0.2. Not for engineering use. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
+> Status: winter PoC, grammar v0.3. Not for engineering use. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Try it
 
@@ -18,18 +18,20 @@ uv run prescript verify examples/gb200-1su/netlist.yaml
 ```
 
 ```
-id    check          normal  maint-cdu-A  maint-cdu-B  pump-fail-A  summer-peak  valve-shut-01  facility-loss  static  meta
-----  -------------  ------  -----------  -----------  -----------  -----------  -------------  -------------  ------  ----
-C-01  loop_closed    PASS                              PASS         PASS         PASS
+id    check          normal  maint-cdu-A  maint-cdu-B  pump-fail-A  summer-peak  valve-shut-01  facility-loss  stop-cdu-A@s1  stop-cdu-A@s2  stop-cdu-A@s3  stop-cdu-A@s4  static  meta
+----  -------------  ------  -----------  -----------  -----------  -----------  -------------  -------------  -------------  -------------  -------------  -------------  ------  ----
+C-01  loop_closed    PASS                              PASS         PASS         PASS                          PASS           PASS           PASS           PASS
 C-02  dual_path      PASS                              PASS         PASS
 C-03  loop_closed            PASS         PASS
-C-05  loading        PASS    PASS         PASS         PASS         PASS         PASS
+C-05  loading        PASS    PASS         PASS         PASS         PASS         PASS                          PASS           PASS           PASS           PASS
 C-07  inlet_temp     PASS                                           PASS
 C-08  n_minus_1      PASS
 C-09  pressure_drop  PASS                                                        PASS
 C-10  balance        PASS                                                        PASS
 ...
-PASS 33 · FAIL 0 · WARN 0 · UNRUN 0
+PASS 45 · FAIL 0 · WARN 0 · UNRUN 0
+assumed  stop-cdu-A@s1  standby start inhibited at the controller (provenance: assumed)
+assumed  stop-cdu-A@s2  loss of pump running feedback (provenance: assumed)
 ```
 
 `UNRUN` is deliberate: a check that touches an undecided (`null`) rating, or that is not built yet,
@@ -43,6 +45,15 @@ uv run prescript draw examples/gb200-1su/netlist.yaml --mode maint-cdu-A -o loop
 ```
 
 `draw` renders; it does not verify. A rating the netlist leaves undecided is drawn as `?`.
+
+An operating procedure is written step by step under `procedures:`, and every step becomes a mode
+the assertions run in — the `stop-cdu-A@s1 … @s4` columns above. Its `done_when` conditions are
+plant feedback nobody computes, so the report lists them as `assumed`. The same procedure as a
+storyboard, one diagram per step:
+
+```bash
+uv run prescript draw examples/gb200-1su/netlist.yaml --procedure stop-cdu-A -o frames/
+```
 
 ## What it checks that a power tool would not
 
@@ -59,6 +70,7 @@ headers, in the numbers.
 | Module / IP              | `blocks:` — e.g. a GB200 NVL72 rack, a CDU loop     |
 | Elaboration → netlist    | `prescript elaborate`                               |
 | Test scenarios           | `modes:` — normal, maint-cdu-A, summer-peak, …      |
+| ASM chart                | `procedures:` — each step elaborates into a mode    |
 | SVA assertions           | `assertions:` — closed loop, dual path, loading, …  |
 | Functional coverage      | assertion × mode coverage                           |
 | Regression in CI         | `prescript verify` comment on every PR              |

@@ -1,7 +1,7 @@
 # Architecture
 
 > Prescript: spec-as-code and verification for data-center liquid cooling.
-> Last updated: 2026-11-15 · grammar v0.2 · PoC
+> Last updated: 2026-11-15 · grammar v0.3 · PoC
 
 ## 1. Why this shape
 
@@ -14,9 +14,10 @@ the HDL pipeline, not the HDL syntax.
 | HDL concept               | Prescript                                                   |
 | ------------------------- | ----------------------------------------------------------- |
 | Module / IP block         | `blocks:` (e.g. `rack_gb200_nvl72`, `cdu_loop`)             |
-| Elaboration               | `loader` expands blocks                                     |
+| Elaboration               | `loader` expands blocks and procedures                      |
 | Netlist                   | `ir.Design` (nodes, edges with valves)                      |
 | Test vectors / scenarios  | `modes:` (normal, maint-cdu-A, summer-peak, …)              |
+| ASM chart (procedure)     | `procedures:`, each step elaborated into a mode             |
 | SVA assertions            | `assertions:` routed to `checks/*`                          |
 | Functional coverage       | `coverage` over assertion × mode cells                      |
 | Regression in CI          | `prescript verify` on every PR, Markdown report as a comment |
@@ -50,15 +51,15 @@ reports facts — whether a change breaks an assertion is `verify`'s answer.
 
 | Module                 | Responsibility                                                          |
 | ---------------------- | ----------------------------------------------------------------------- |
-| `prescript/ir.py`      | Frozen IR types: nodes, edges, modes, spec tables. `None` = undecided.  |
-| `prescript/loader.py`  | YAML 1.2-bool parsing, fluids, block elaboration, validation            |
+| `prescript/ir.py`      | Frozen IR types: nodes, edges, modes, procedures, spec tables. `None` = undecided. |
+| `prescript/loader.py`  | YAML 1.2-bool parsing, fluids, block and procedure elaboration, validation |
 | `prescript/modes.py`   | Resolve overrides → equipment/valve states; circulation and dead legs   |
 | `prescript/result.py`  | Closed status set and the invariants a `Result` enforces at construction |
 | `prescript/checks/`    | One routine per module; `REGISTRY` + `PLANNED`; `_util.accumulate`      |
 | `prescript/engine.py`  | Assertion × mode loop, severity, coverage                               |
-| `prescript/report.py`  | Matrix + findings as text, Markdown, JSON                               |
+| `prescript/report.py`  | Matrix + findings (+ `done_when` assumptions) as text, Markdown, JSON   |
 | `prescript/diff.py`    | Two elaborated designs → a change list; text, Markdown, JSON            |
-| `prescript/draw.py`    | IR → loop diagram (SVG): columns from the CDU, return lanes             |
+| `prescript/draw.py`    | IR → loop diagram (SVG): columns from the CDU, return lanes; procedure storyboard |
 | `prescript/sim/`       | Plant model, PID, UVM-style testbench and its report (`SIMULATION.md`)   |
 | `prescript/cli.py`     | `verify`, `elaborate`, `diff`, `draw`, `sim`                            |
 
