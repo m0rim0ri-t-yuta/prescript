@@ -16,6 +16,7 @@ from typing import Any
 
 from prescript.ir import Design
 
+# The three kinds of difference a change list can carry.
 ADDED = "added"
 REMOVED = "removed"
 CHANGED = "changed"
