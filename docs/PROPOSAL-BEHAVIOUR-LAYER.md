@@ -1,8 +1,12 @@
 # Proposal — The Behaviour Layer (grammar v0.3)
 
-> **Status: proposal. Nothing here is implemented.** `docs/PRESCRIPT-LANGUAGE.md` remains the SSOT
-> for what the loader accepts today (v0.2). This document is the design to argue with before any
-> loader change; it does not describe working behaviour.
+> **Status: Part B is implemented, as `procedures:` (grammar v0.3, #44). Parts A (`kinds:`) and C
+> (transition assertions) are still proposals.** `docs/PRESCRIPT-LANGUAGE.md` is the SSOT for what
+> the loader accepts; where it and §4 differ, it wins. Part B shipped without Part A, on the
+> existing overrides. Open questions settled by #44: 3 — steps are cumulative deltas and
+> `prescript elaborate` prints each step's absolute overrides; 4 — procedures stay in the netlist
+> file for now; 6 — the key is `procedures:`. The reference design carries `stop-cdu-A`, and the §6
+> result is a test (`tests/test_procedures.py`).
 > Written against commit `2ace733`, grammar v0.2.
 
 ## 1. The problem

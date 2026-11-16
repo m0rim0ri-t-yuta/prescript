@@ -1,7 +1,7 @@
 # Architecture
 
 > Prescript: spec-as-code and verification for data-center liquid cooling.
-> Last updated: 2026-11-15 · grammar v0.2 · PoC
+> Last updated: 2026-11-15 · grammar v0.3 · PoC
 
 ## 1. Why this shape
 
@@ -14,9 +14,10 @@ the HDL pipeline, not the HDL syntax.
 | HDL concept               | Prescript                                                   |
 | ------------------------- | ----------------------------------------------------------- |
 | Module / IP block         | `blocks:` (e.g. `rack_gb200_nvl72`, `cdu_loop`)             |
-| Elaboration               | `loader` expands blocks                                     |
+| Elaboration               | `loader` expands blocks and procedures                      |
 | Netlist                   | `ir.Design` (nodes, edges with valves)                      |
 | Test vectors / scenarios  | `modes:` (normal, maint-cdu-A, summer-peak, …)              |
+| ASM chart (procedure)     | `procedures:`, each step elaborated into a mode             |
 | SVA assertions            | `assertions:` routed to `checks/*`                          |
 | Functional coverage       | `coverage` over assertion × mode cells                      |
 | Regression in CI          | `prescript verify` on every PR, Markdown report as a comment |
@@ -50,16 +51,16 @@ reports facts — whether a change breaks an assertion is `verify`'s answer.
 
 | Module                 | Responsibility                                                          |
 | ---------------------- | ----------------------------------------------------------------------- |
-| `prescript/ir.py`      | Frozen IR types: nodes, edges, modes, spec tables. `None` = undecided.  |
-| `prescript/loader.py`  | YAML 1.2-bool parsing, fluids, block elaboration, validation            |
+| `prescript/ir.py`      | Frozen IR types: nodes, edges, modes, procedures, spec tables. `None` = undecided. |
+| `prescript/loader.py`  | YAML 1.2-bool parsing, fluids, block and procedure elaboration, validation |
 | `prescript/modes.py`   | Resolve overrides → equipment/valve states; circulation and dead legs   |
 | `prescript/result.py`  | Closed status set and the invariants a `Result` enforces at construction |
 | `prescript/checks/`    | One routine per module; `REGISTRY` + `PLANNED`; `_util.accumulate`      |
 | `prescript/engine.py`  | Assertion × mode loop, severity, coverage                               |
-| `prescript/report.py`  | Matrix + findings as text, Markdown, JSON                               |
+| `prescript/report.py`  | Matrix + findings (+ `done_when` assumptions) as text, Markdown, JSON   |
 | `prescript/diff.py`    | Two elaborated designs → a change list; text, Markdown, JSON            |
-| `prescript/draw.py`    | IR → loop diagram (SVG): columns from the CDU, return lanes             |
-| `prescript/sim/`       | Plant model, PID, UVM-style testbench and its report (`SIMULATION.md`)   |
+| `prescript/draw.py`    | IR → loop diagram (SVG): columns from the CDU, return lanes; procedure storyboard |
+| `prescript/sim/`       | Plant models (Phase 1 hand-written, Phase 2 from the netlist), PID, UVM-style testbench, report (`SIMULATION.md`) |
 | `prescript/cli.py`     | `verify`, `elaborate`, `diff`, `draw`, `sim`                            |
 
 ## 4. Design decisions
@@ -74,9 +75,10 @@ reports facts — whether a change breaks an assertion is `verify`'s answer.
    inside its rating, does every rack get its share, and can the pump push it?" with the
    steady-state sensible-heat balance `Q = V · rho · cp · dT`, a rating-limited flow balance and a
    1-D pressure-drop screening — each method named in its results. Solving the network and the
-   pump curve come later, and only with a defensible method. Transient behaviour is a separate
-   stage, `prescript sim` (`SIMULATION.md`): a lumped plant model driven by a UVM-style testbench,
-   after the static checks and never instead of them. Industry
+   pump curve stay out of the static checks. Transient behaviour is a separate stage,
+   `prescript sim` (`SIMULATION.md`): the netlist's own network and a lumped heat model, driven by a
+   UVM-style testbench — a procedure's steps on a time axis — after the static checks and never
+   instead of them. Industry
    simulators are export targets, not something Prescript re-implements.
 4. **The facility loop is a boundary condition.** The scope is the technology cooling loop (TCS)
    on the rack side of the CDU, because that is what a retrofit changes. What the facility water

@@ -1,11 +1,11 @@
-# Prescript Netlist Language — v0.2
+# Prescript Netlist Language — v0.3
 
 SSOT for the netlist format. `src/prescript/loader.py` implements it; change both in one PR.
 
 ## File
 
 ```yaml
-prescript: 0.2            # grammar version (required)
+prescript: 0.3            # grammar version (required); 0.2 still loads
 project: <name>
 units: {heat: kW, flow: L/min, temperature: C, pressure: kPa, length: mm, time: s}
 fluids: {...}
@@ -13,8 +13,13 @@ blocks: {...}
 nodes: [...]
 edges: [...]
 modes: {...}
+procedures: {...}         # v0.3
 assertions: [...]
 ```
+
+**Versions**: `0.3` adds `procedures:`. A `0.2` netlist loads and verifies to the same report as
+before; `procedures:` in a `0.2` netlist is an error that names the version. In either version a
+mode name may no longer contain `@` (see Modes).
 
 **Booleans are YAML 1.2**: only `true`/`false`. `on`, `off`, `yes`, `no` are plain strings, because
 `on`/`off` are equipment states.
@@ -52,6 +57,14 @@ Manifolds: `rating_lpm`, `side: A|B`. Elsewhere the side is read from a whole `-
 
 Pressure drop of equipment (CDU exchanger, manifold, rack, rdhx) is a rated point: `dp_kpa` at a flow
 of `dp_lpm`. At another flow it scales with the square of the flow.
+
+Dynamics, read only by `prescript sim` (`docs/SIMULATION.md`); a `null` makes the simulation or the
+judgement that needs it `UNRUN`. Pumps: `shutoff_kpa` (head at zero flow; with `rating_kpa` at
+`rating_lpm` it fixes a quadratic curve), `npshr_m` (NPSH required at `rating_lpm`), `ramp_s` (speed
+time constant on a start or stop). CDUs: `fill_kpa` (expansion-tank gauge pressure at the CDU
+inlet), `facility_lpm` (facility-water flow with its valve fully open), `supply_c` (secondary
+supply setpoint). Headers: `wave_speed_m_s` (pressure-wave speed), `design_kpa` (design pressure,
+gauge). Valves: `stroke_s` (full stroke time; absent means instantaneous).
 
 Coolant inventory, which `ride_through` counts, is `volume_l` on every element. A header states no
 `volume_l`: its volume is its `dn_mm` bore over its `length_m` run, so it is geometry, not a second
@@ -97,12 +110,57 @@ modes:
     note: "..."
 ```
 
+A mode name must not contain `@`: it is reserved for the modes procedures elaborate into.
 `overrides` set equipment and valve states; the target must exist. `demand` is a load factor per
 load class, applied to `heat_kw`. `conditions` carry the boundary the facility side imposes —
 `facility_supply_c` is what `inlet_temp` and `return_temp` need, and a mode that omits it makes
 those checks `UNRUN`. `loop_start_c` is the temperature of the water already in the loop at the
 moment a mode's heat sink is lost — the facility side has failed in such a mode, so its supply
 temperature cannot stand in for it; `ride_through` needs it.
+
+## Procedures (v0.3)
+
+An operating procedure written as the ordered sequence of states it moves the plant through — the
+ASM-chart equivalent. Each step is a **delta** on the state the previous step left, starting from
+a hand-written mode.
+
+```yaml
+procedures:
+  stop-cdu-A:
+    from: normal                       # required: an existing hand-written mode
+    intent: "Planned maintenance on CDU-A; the hall runs on CDU-B throughout"   # optional
+    holds: [C-01, C-05, C-06]          # optional: assertion ids asked at every step
+    steps:                             # required, non-empty, in order
+      - id: s1                         # required, unique in the procedure, [A-Za-z0-9_-]+
+        action: "Inhibit the standby pump"     # required
+        set: {PMP-A-2: off}            # required, non-empty: node or valve id -> state
+        after_s: 30                    # optional, > 0: seconds after the previous step
+        within_s: 60                   # optional, > 0
+        done_when: {assume: "standby start inhibited at the controller", provenance: "assumed"}
+```
+
+A procedure name uses `[A-Za-z0-9_-]+`, like a step id. `set` targets must exist: a node takes
+`on`, `off` or `standby`, a valve `open` or `closed`.
+
+**Elaboration.** Step *k* becomes the ordinary mode `"<procedure>@<step id>"`. Its `overrides`
+are the `from` mode's, updated by the `set:` of steps 1 … *k* in order — a later step wins. Its
+`demand` and `conditions` are copied from the `from` mode, and its `note` is
+`"<procedure> <step id>: <action>"`. The step modes follow the hand-written ones in `modes`, in
+procedure and step order, so everything that reads a mode — every check, the report matrix,
+`draw --mode` — reads them unchanged. `prescript elaborate` prints each step's absolute overrides.
+
+**`holds:`** appends the procedure's step modes to the `modes` of each named assertion (once
+each). It cannot name an assertion that runs on `static` or `meta`. An assertion may also name a
+step mode directly, and `modes: all` includes every step mode.
+
+**Time.** `after_s` is the time from the previous step (for the first step, from the start of the
+procedure); `within_s` is the time the step is allowed to take. The static checks ignore both;
+they are recorded for the simulator.
+
+**`done_when` is an assumption, not a computation.** It states the plant feedback that ends the
+step — SystemVerilog's `assume`. `provenance` is mandatory. Nothing evaluates it: `prescript
+verify` prints every one under the summary as `assumed`, so a PASS at a step is never read as proof
+that the plant reached it.
 
 ## Spec tables
 
@@ -124,6 +182,7 @@ parameter edited by hand: eight racks move, and only the schedule still says 150
 
 ## Assertions
 
-`{id, check, args, modes, severity?}`. `modes` is `all`, or a list of mode names and/or the
-pseudo-modes `static` (runs once on the design) and `meta` (runs over the other results).
+`{id, check, args, modes, severity?}`. `modes` is `all` (every mode, procedure steps included),
+or a list of mode names and/or the pseudo-modes `static` (runs once on the design) and `meta` (runs
+over the other results). A procedure's `holds:` adds its step modes to the list.
 `severity: warn` turns a `FAIL` into a `WARN`. Routine semantics: `CHECKS.md`.

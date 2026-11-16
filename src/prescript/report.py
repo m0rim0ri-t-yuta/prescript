@@ -31,6 +31,19 @@ def matrix(design: Design, results: list[Result]) -> tuple[list[str], list[list[
     return ["id", "check", *used], rows
 
 
+def assumptions(design: Design) -> list[tuple[str, str, str]]:
+    """Every procedure step's `done_when`, as (step mode, assumption, provenance), in order.
+
+    They are stated preconditions, never evaluated: the report carries them so that a step's
+    PASS is never read as proof that the plant got there."""
+    return [
+        (step.mode, step.done_when.assume, step.done_when.provenance)
+        for procedure in design.procedures.values()
+        for step in procedure.steps
+        if step.done_when is not None
+    ]
+
+
 def to_text(design: Design, results: list[Result], verbose: bool = False) -> str:
     header, rows = matrix(design, results)
     widths = [max(len(str(x)) for x in col) for col in zip(header, *rows, strict=False)]
@@ -45,7 +58,12 @@ def to_text(design: Design, results: list[Result], verbose: bool = False) -> str
         line(["-" * w for w in widths]),
     ]
     out += [line(r) for r in rows]
-    out += ["", summary(results), ""]
+    out += ["", summary(results)]
+    assumed = assumptions(design)
+    mode_w = max((len(mode) for mode, _, _ in assumed), default=0)
+    for mode, assume, provenance in assumed:
+        out.append(f"assumed  {mode.ljust(mode_w)}  {assume} (provenance: {provenance})")
+    out.append("")
     # UNRUN cells of one assertion usually share a reason: print them once.
     unrun_groups: dict[tuple[str, str], list[str]] = {}
     for r in results:
@@ -75,6 +93,15 @@ def to_markdown(design: Design, results: list[Result]) -> str:
     for row in rows:
         cells = row[:2] + [_ICON.get(Status(c), "") if c else "" for c in row[2:]]
         out.append("| " + " | ".join(cells) + " |")
+    assumed = assumptions(design)
+    if assumed:
+        out += [
+            "",
+            "**Assumed, not proven** (`done_when` of procedure steps; never evaluated):",
+            "",
+        ]
+        for mode, assume, provenance in assumed:
+            out.append(f"- `{mode}` {assume} (provenance: {provenance})")
     problems = [r for r in results if r.status in (Status.FAIL, Status.WARN)]
     if problems:
         out += ["", "<details><summary>Findings</summary>", ""]
