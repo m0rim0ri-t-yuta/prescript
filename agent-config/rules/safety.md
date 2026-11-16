@@ -11,7 +11,12 @@
   read for the project directory. Drive a prescript worktree from another repo's session and
   neither file is loaded, so the same commands run unblocked. A push that went through is not
   evidence that it was allowed.
-- Do not route around either layer. If a hook is wrong, fix the hook in its own PR.
+- `main` is protected on GitHub, and that layer is not scoped to a session: force-push and deletion
+  are rejected, a pull request is required to merge, and `check` + `scan` must pass on an up-to-date
+  branch. `enforce_admins` is on, so it holds for the owner too; the required approval count is 0,
+  so `review-governance.md` — not GitHub — is what makes the owner the reviewer. Feature branches
+  are **not** protected: a force-push there is stopped by the rule above and nothing else.
+- Do not route around any of these layers. If a hook is wrong, fix the hook in its own PR.
 
 ## Secrets
 
