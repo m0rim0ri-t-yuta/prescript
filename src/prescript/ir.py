@@ -92,6 +92,18 @@ class Edge(_Model):
     origin: str | None = None  # "<block>[<instance args>]" when produced by elaboration
 
 
+class SpecTable(_Model):
+    """A sheet of the spec this design was taken from, transcribed: one row per element id.
+
+    The IR carries it so that `consistency` stays a pure function — reading files is the loader's
+    job. A cell the spec has not decided is `None`, exactly like a rating.
+    """
+
+    name: str
+    rows: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    provenance: str | None = None
+
+
 class Mode(_Model):
     name: str
     overrides: dict[str, str] = Field(default_factory=dict)
@@ -113,6 +125,7 @@ class Design(_Model):
     project: str
     units: dict[str, str] = Field(default_factory=dict)
     fluids: dict[str, Fluid] = Field(default_factory=dict)
+    spec: dict[str, SpecTable] = Field(default_factory=dict)
     nodes: dict[str, Node]
     edges: tuple[Edge, ...]
     modes: dict[str, Mode]

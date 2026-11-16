@@ -29,12 +29,20 @@ C-08  n_minus_1      PASS
 C-09  pressure_drop  PASS                                                        PASS
 C-10  balance        PASS                                                        PASS
 ...
-PASS 30 · FAIL 0 · WARN 1 · UNRUN 2
+PASS 33 · FAIL 0 · WARN 0 · UNRUN 0
 ```
 
 `UNRUN` is deliberate: a check that touches an undecided (`null`) rating, or that is not built yet,
-never reports `PASS`. Every `UNRUN` above is a routine that is not built yet; an assertion is not
-asked for in a mode where it could never mean anything.
+never reports `PASS`. The reference design has none left — every routine it names is built — and an
+assertion is not asked for in a mode where it could never mean anything.
+
+The same netlist as a picture — one operating mode's states on the loop:
+
+```bash
+uv run prescript draw examples/gb200-1su/netlist.yaml --mode maint-cdu-A -o loop.svg
+```
+
+`draw` renders; it does not verify. A rating the netlist leaves undecided is drawn as `?`.
 
 ## What it checks that a power tool would not
 
@@ -55,6 +63,8 @@ headers, in the numbers.
 | Functional coverage      | assertion × mode coverage                           |
 | Regression in CI         | `prescript verify` comment on every PR              |
 | Revision diff            | `prescript diff` — what an edit really changed      |
+| Schematic view           | `prescript draw` — the netlist as a loop diagram    |
+| UVM testbench            | `prescript sim` — random load steps on a plant model |
 
 ## Reference design
 
@@ -65,7 +75,8 @@ count and IT power follow NVIDIA's public reference architecture; every cooling 
 ## Docs
 
 [Architecture](docs/ARCHITECTURE.md) · [Netlist language](docs/PRESCRIPT-LANGUAGE.md) ·
-[Checks](docs/CHECKS.md) · [Development](docs/DEVELOPMENT.md) · [Roadmap](docs/ROADMAP.md)
+[Checks](docs/CHECKS.md) · [Simulation](docs/SIMULATION.md) · [Development](docs/DEVELOPMENT.md) ·
+[Roadmap](docs/ROADMAP.md)
 
 Contributors and coding agents: start at [`AGENTS.md`](AGENTS.md).
 

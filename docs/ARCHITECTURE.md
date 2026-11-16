@@ -1,7 +1,7 @@
 # Architecture
 
 > Prescript: spec-as-code and verification for data-center liquid cooling.
-> Last updated: 2026-11-13 · grammar v0.2 · PoC
+> Last updated: 2026-11-15 · grammar v0.2 · PoC
 
 ## 1. Why this shape
 
@@ -33,16 +33,24 @@ netlist.yaml ──▶ loader ──▶ ir.Design ──▶ modes.resolve(mode) 
 Each stage consumes only the previous stage's output. Checks never read YAML; the report never
 re-runs checks.
 
-`diff` is a second consumer of the IR, beside `checks`: two elaborated designs in, the list of
-differences out. It compares after elaboration, which is why one edited block parameter reads as
-the eight racks it moved, and it reports facts — whether a change breaks an assertion is `verify`'s
-answer.
+`checks` is not the only consumer of the IR. `draw` reads one design:
+
+```
+ir.Design (+ modes.resolve(mode)) ──▶ draw.to_svg ──▶ loop diagram (SVG)
+```
+
+It renders what the netlist says — topology, the states of one mode, the ratings as written — and
+reports no pass or fail. An undecided rating is drawn as `?`, never as a number.
+
+`diff` reads two: two elaborated designs in, the list of differences out. It compares after
+elaboration, which is why one edited block parameter reads as the eight racks it moved, and it
+reports facts — whether a change breaks an assertion is `verify`'s answer.
 
 ## 3. Modules
 
 | Module                 | Responsibility                                                          |
 | ---------------------- | ----------------------------------------------------------------------- |
-| `prescript/ir.py`      | Frozen IR types. Units in field names. `None` = undecided rating.       |
+| `prescript/ir.py`      | Frozen IR types: nodes, edges, modes, spec tables. `None` = undecided.  |
 | `prescript/loader.py`  | YAML 1.2-bool parsing, fluids, block elaboration, validation            |
 | `prescript/modes.py`   | Resolve overrides → equipment/valve states; circulation and dead legs   |
 | `prescript/result.py`  | Closed status set and the invariants a `Result` enforces at construction |
@@ -50,7 +58,9 @@ answer.
 | `prescript/engine.py`  | Assertion × mode loop, severity, coverage                               |
 | `prescript/report.py`  | Matrix + findings as text, Markdown, JSON                               |
 | `prescript/diff.py`    | Two elaborated designs → a change list; text, Markdown, JSON            |
-| `prescript/cli.py`     | `prescript verify`, `prescript elaborate`, `prescript diff`             |
+| `prescript/draw.py`    | IR → loop diagram (SVG): columns from the CDU, return lanes             |
+| `prescript/sim/`       | Plant model, PID, UVM-style testbench and its report (`SIMULATION.md`)   |
+| `prescript/cli.py`     | `verify`, `elaborate`, `diff`, `draw`, `sim`                            |
 
 ## 4. Design decisions
 
@@ -63,8 +73,10 @@ answer.
 3. **Topology first, physics later.** v0.2 answers "does it circulate, does every element stay
    inside its rating, does every rack get its share, and can the pump push it?" with the
    steady-state sensible-heat balance `Q = V · rho · cp · dT`, a rating-limited flow balance and a
-   1-D pressure-drop screening — each method named in its results. Solving the network, the pump
-   curve and transient behaviour come later, and only with a defensible method. Industry
+   1-D pressure-drop screening — each method named in its results. Solving the network and the
+   pump curve come later, and only with a defensible method. Transient behaviour is a separate
+   stage, `prescript sim` (`SIMULATION.md`): a lumped plant model driven by a UVM-style testbench,
+   after the static checks and never instead of them. Industry
    simulators are export targets, not something Prescript re-implements.
 4. **The facility loop is a boundary condition.** The scope is the technology cooling loop (TCS)
    on the rack side of the CDU, because that is what a retrofit changes. What the facility water

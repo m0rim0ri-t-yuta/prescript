@@ -114,3 +114,28 @@ def test_block_edges_carry_the_block_they_came_from(design: Design) -> None:
     assert branch.origin is not None and branch.origin.startswith("rack_gb200_nvl72[")
     hand_written = next(e for e in design.edges if e.src == "HDR-S-A" and e.dst == "RDHX-01")
     assert hand_written.origin is None
+
+
+def test_spec_table_is_read_into_the_ir(design: Design) -> None:
+    table = design.spec["02_Loads"]
+    assert len(table.rows) == 9
+    assert table.rows["RACK-01"]["heat_kw"] == 150
+    assert table.provenance
+
+
+def test_a_spec_table_needs_provenance(doc: dict[str, Any]) -> None:
+    del doc["spec"]["02_Loads"]["provenance"]
+    with pytest.raises(NetlistError, match="provenance is mandatory"):
+        parse_design(doc)
+
+
+def test_a_spec_row_needs_an_id(doc: dict[str, Any]) -> None:
+    doc["spec"]["02_Loads"]["rows"].append({"heat_kw": 150})
+    with pytest.raises(NetlistError, match="every row needs an id"):
+        parse_design(doc)
+
+
+def test_duplicate_spec_rows_are_rejected(doc: dict[str, Any]) -> None:
+    doc["spec"]["02_Loads"]["rows"].append({"id": "RACK-01", "heat_kw": 150})
+    with pytest.raises(NetlistError, match="duplicate row id"):
+        parse_design(doc)

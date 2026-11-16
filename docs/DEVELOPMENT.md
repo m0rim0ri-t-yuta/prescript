@@ -20,11 +20,27 @@ For Issue work use `./scripts/worktree-create.sh <id> <slug> [type]` instead —
 | `uv run prescript elaborate …`                                 | Dump the elaborated IR                |
 | `uv run prescript diff before.yaml after.yaml`                 | What changed, after elaboration       |
 | `uv run prescript diff -f md …` / `-f json`                    | Markdown for PR comments / JSON       |
+| `uv run prescript draw … -o loop.svg`                          | Loop diagram as SVG                   |
+| `uv run prescript draw … --mode maint-cdu-A`                   | …with one mode's states on it         |
+| `uv run prescript sim [--seed N --runs K]`                | Dynamic testbench (`SIMULATION.md`)   |
+| `./scripts/demo.sh`                                       | W4 demo: green → red → green (below)  |
 | `uv run pytest`                                           | Tests                                 |
 | `uv run ruff check . && uv run ruff format --check .`     | Lint + format                         |
 | `uv run mypy`                                             | Strict type check of `src/`           |
 | `uv run python scripts/sync_agent_config.py [--check]`    | Regenerate / verify Claude adapters   |
 | `./scripts/sync_labels.sh`                                | Push `.github/labels.yml` to GitHub   |
+
+## Demo
+
+`./scripts/demo.sh` runs the W4 walkthrough from `ROADMAP.md` on copies of the reference design:
+the design as it is, a GPU refresh (racks 150 → 200 kW) and an upsized cooling loop. It prints each
+step's summary line and exit code, and the evidence under every `FAIL`. The reference design is never
+modified; the copies are left in `$TMPDIR/prescript-demo`.
+
+It checks the shape of the story — exit 0, then exit 1 with findings, then exit 0 — not the totals,
+which change whenever a check routine lands. If a step stops matching (the netlist text changed, or a
+step no longer goes the expected colour) the script stops with the reason; `tests/test_demo.py` runs
+it in CI.
 
 ## Hooks
 
