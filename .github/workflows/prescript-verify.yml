@@ -46,8 +46,9 @@ jobs:
         run: ./scripts/ci_netlist_diff.sh "$BASE_SHA" diff.md
       - name: compose the comment
         # What changed first, the verdict second. One comment, so a diff that is no longer there
-        # cannot linger in a second one.
-        run: cat diff.md report.md > comment.md
+        # cannot linger in a second one. Bounded, because GitHub rejects an over-long body
+        # outright and the verdict would be rejected with it (#51).
+        run: uv run python scripts/ci_comment.py diff.md report.md comment.md
       - name: comment
         if: github.event.pull_request.head.repo.full_name == github.repository
         uses: marocchino/sticky-pull-request-comment@v2

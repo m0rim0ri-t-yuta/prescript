@@ -28,6 +28,7 @@ For Issue work use `./scripts/worktree-create.sh <id> <slug> [type]` instead —
 | `./scripts/demo.sh`                                       | W4 demo: green → red → green (below)  |
 | `./scripts/demo-procedure.sh`                             | Procedure → diagrams → simulation     |
 | `./scripts/ci_netlist_diff.sh <base-sha> diff.md`         | Reproduce CI's diff comment locally   |
+| `uv run python scripts/ci_comment.py diff.md report.md c.md` | …and the bounded comment CI posts     |
 | `uv run pytest`                                           | Tests                                 |
 | `uv run ruff check . && uv run ruff format --check .`     | Lint + format                         |
 | `uv run mypy`                                             | Strict type check of `src/`           |
@@ -71,4 +72,9 @@ it in CI.
   and `prescript verify -f md` on the reference design supplies the verdict below it. Only a
   `FAIL` from verify turns the job red; the diff states facts and never a verdict. The job
   needs `fetch-depth: 0`, because the base netlist is read with `git show`.
+  `scripts/ci_comment.py` joins the two inside GitHub's comment limit (65536 characters, which
+  the API rejects a body for exceeding — and it would reject the verdict along with it). Over the
+  limit the change list loses whole lines from its end, the report stays whole, and the comment
+  says what was cut and where to read it; the full text goes to the job log. Pass `--limit` to
+  try a smaller bound by hand.
 - `gitleaks.yml` — full-history secret scan with the gitleaks CLI (job `scan`).
