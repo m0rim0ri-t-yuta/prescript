@@ -69,7 +69,7 @@ The static checks above stay the gate. Behind them, `prescript sim` runs a UVM-s
 | Phase | Deliverable                                                                                 | Exit criterion                                  |
 | ----- | ------------------------------------------------------------------------------------------- | ----------------------------------------------- |
 | 1 #27 | One exchanger and one PID valve; heat steps; settling and valve-authority scoreboard        | `prescript sim` PASS/FAIL per run; pytest green |
-| 2     | Plant built from the netlist (CDU, pumps, piping); load and facility-water profiles; cavitation | the reference design simulates in every mode |
+| 2 #45 | Plant built from the netlist (CDU, pumps, piping); load and facility-water profiles; cavitation; procedures on a time axis | the reference design simulates from every mode with a running CDU (`facility-loss` has none: Phase 3) |
 | 3     | Fault injection from the netlist's modes; switchover time; rack inlet red line              | `pump-fail-A` and `maint-cdu-A` judged in time  |
 | 4     | Thousands of scenarios in CI; functional-coverage report                                    | coverage report on every PR                      |
 
@@ -77,5 +77,6 @@ The static checks above stay the gate. Behind them, `prescript sim` runs a UVM-s
 
 CFD, two-phase and immersion cooling, water chemistry and corrosion, the facility water plant
 (it enters as a mode condition), leak-detection logic, structural and routing constraints,
-pressure-wave transients (water hammer) until a method for them exists, the chiller plant and PUE,
+pressure-wave transients (water hammer) beyond a one-sided Joukowsky screen until a method for
+them exists, the chiller plant and PUE,
 simulator integration beyond CSV export, DXF/PDF ingestion, a web UI, a custom grammar.

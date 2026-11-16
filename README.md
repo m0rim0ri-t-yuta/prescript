@@ -76,7 +76,7 @@ headers, in the numbers.
 | Regression in CI         | `prescript verify` comment on every PR              |
 | Revision diff            | `prescript diff` — what an edit really changed      |
 | Schematic view           | `prescript draw` — the netlist as a loop diagram    |
-| UVM testbench            | `prescript sim` — random load steps on a plant model |
+| UVM testbench            | `prescript sim` — the netlist's own loop, a procedure's steps on a time axis |
 
 ## Reference design
 
