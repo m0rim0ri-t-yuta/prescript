@@ -22,6 +22,7 @@ For Issue work use `./scripts/worktree-create.sh <id> <slug> [type]` instead —
 | `uv run prescript diff -f md …` / `-f json`                    | Markdown for PR comments / JSON       |
 | `uv run prescript draw … -o loop.svg`                          | Loop diagram as SVG                   |
 | `uv run prescript draw … --mode maint-cdu-A`                   | …with one mode's states on it         |
+| `uv run prescript draw … --procedure stop-cdu-A -o frames/`    | One SVG per step + `index.html`       |
 | `uv run prescript sim [--seed N --runs K]`                | Dynamic testbench (`SIMULATION.md`)   |
 | `./scripts/demo.sh`                                       | W4 demo: green → red → green (below)  |
 | `uv run pytest`                                           | Tests                                 |

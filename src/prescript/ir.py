@@ -112,6 +112,42 @@ class Mode(_Model):
     note: str | None = None
 
 
+class Assumption(_Model):
+    """A stated, unproven condition — SystemVerilog's `assume`. Recorded and reported, never
+    evaluated."""
+
+    assume: str
+    provenance: str
+
+
+class Step(_Model):
+    """One step of a procedure: a delta on the state the previous step left.
+
+    `mode` names the ordinary `Mode` the loader elaborated it into, `"<procedure>@<id>"`.
+    `after_s` is seconds after the previous step (the first: after the procedure starts); static
+    checks ignore it and `within_s`.
+    """
+
+    id: str
+    action: str
+    set: dict[str, str]
+    mode: str
+    after_s: float | None = None
+    within_s: float | None = None
+    done_when: Assumption | None = None
+
+
+class Procedure(_Model):
+    """An operating procedure written as an ordered sequence of states (the ASM-chart
+    equivalent), starting from the hand-written mode `from_mode`."""
+
+    name: str
+    from_mode: str
+    intent: str | None = None
+    steps: tuple[Step, ...]
+    holds: tuple[str, ...] = ()
+
+
 class Assertion(_Model):
     id: str
     check: str
@@ -130,6 +166,7 @@ class Design(_Model):
     edges: tuple[Edge, ...]
     modes: dict[str, Mode]
     assertions: tuple[Assertion, ...]
+    procedures: dict[str, Procedure] = Field(default_factory=dict)
 
     def devices(self) -> dict[str, Device]:
         return {e.via.id: e.via for e in self.edges if e.via is not None}

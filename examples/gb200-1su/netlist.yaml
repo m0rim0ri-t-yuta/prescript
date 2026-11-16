@@ -3,15 +3,17 @@
 # exchanger is a boundary condition, given per mode as `conditions.facility_supply_c`.
 # Rack count and IT power follow NVIDIA's public reference architecture (RA11338001); every
 # cooling figure is marked `assumed` with a round number — this repository holds no vendor data.
-# Grammar (v0.2):
+# Grammar (v0.3):
 #   nodes:   every cdu, pump, header, manifold and load is a node with a `kind`
 #   edges:   directed the way the coolant travels; a `via` names the valve on that edge
 #   ratings: kW / L/min / kPa as the spec gives them; a missing rating is `null`, never a guess
 #   state:   open|closed for valves, on|off|standby for equipment; `modes` override these
+#   procedures: an operating procedure as ordered steps; each step elaborates into the mode
+#            "<procedure>@<step id>", so every assertion can be asked at every step
 #   provenance: every node says where its numbers came from (a public source or "assumed")
 #   Rule: the verifier never passes a check that touched a `null` rating; it reports UNRUN.
 
-prescript: 0.2
+prescript: 0.3
 project: GB200-1SU-DLC-POC
 units: {heat: kW, flow: L/min, temperature: C, pressure: kPa, length: mm, time: s}
 
@@ -137,6 +139,40 @@ modes:
     # and 33 C back (+ 10 K across a rack).
     conditions: {facility_supply_c: 45, loop_start_c: 28}
     note: "Facility water lost and both CDUs trip; how long until the GPUs must throttle"
+
+# ------------------------------------------------------------ procedures ----
+# An operating procedure, written step by step. Each step is a delta on the one before it,
+# starting from `from`, and elaborates into an ordinary mode (`stop-cdu-A@s1` ... `@s4`) with the
+# start mode's demand and conditions. `holds` asks those assertions at every step, so the report
+# shows where in the procedure a margin is lost, not only at the end state (`maint-cdu-A`).
+# Timing: every `after_s` and `within_s` below is assumed — round numbers, no vendor or site
+# procedure behind them. Static checks ignore both; they are recorded for the simulator.
+# `done_when` is an assumption about plant feedback: carried into the report, never evaluated.
+procedures:
+  stop-cdu-A:
+    from: normal
+    intent: "Planned maintenance on CDU-A; the hall runs on CDU-B throughout"
+    holds: [C-01, C-05, C-06]
+    steps:
+      - id: s1
+        action: "Inhibit the standby pump"
+        set: {PMP-A-2: off}
+        after_s: 30
+        done_when: {assume: "standby start inhibited at the controller", provenance: "assumed"}
+      - id: s2
+        action: "Stop the duty pump"
+        set: {PMP-A-1: off}
+        after_s: 30
+        done_when: {assume: "loss of pump running feedback", provenance: "assumed"}
+      - id: s3
+        action: "Stop the CDU"
+        set: {CDU-A: off}
+        after_s: 60
+      - id: s4
+        action: "Isolate the pump branches"
+        set: {V-PMP-A-1: closed, V-PMP-A-2: closed}
+        after_s: 60
+        within_s: 60
 
 # ------------------------------------------------------------------ spec ----
 # The sheets this design was taken from, transcribed. `consistency` proves the elaborated netlist

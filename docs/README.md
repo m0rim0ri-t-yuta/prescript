@@ -6,11 +6,11 @@
 | Document                                     | Purpose                                                   | Audience              |
 | -------------------------------------------- | --------------------------------------------------------- | --------------------- |
 | [ARCHITECTURE.md](./ARCHITECTURE.md)         | Pipeline, IR, module boundaries, design decisions         | Everyone (read first) |
-| [PRESCRIPT-LANGUAGE.md](./PRESCRIPT-LANGUAGE.md)       | Netlist grammar v0.2 (SSOT; the loader implements it)     | Authors / developers  |
+| [PRESCRIPT-LANGUAGE.md](./PRESCRIPT-LANGUAGE.md)       | Netlist grammar v0.3 (SSOT; the loader implements it)     | Authors / developers  |
 | [CHECKS.md](./CHECKS.md)                     | Assertion routines: semantics, args, status per case      | Authors / developers  |
 | [SIMULATION.md](./SIMULATION.md)             | Dynamic verification: plant model, UVM-style testbench, scoreboard | Authors / developers  |
 | [ROADMAP.md](./ROADMAP.md)                   | Winter PoC milestones, scope, out-of-scope, demo script   | Everyone              |
-| [PROPOSAL-BEHAVIOUR-LAYER.md](./PROPOSAL-BEHAVIOUR-LAYER.md) | Proposal (not implemented): `kinds:`, `sequences:`, transition assertions | Authors / developers |
+| [PROPOSAL-BEHAVIOUR-LAYER.md](./PROPOSAL-BEHAVIOUR-LAYER.md) | Behaviour layer: `procedures:` implemented (v0.3); `kinds:` and transition assertions still proposed | Authors / developers |
 | [DEVELOPMENT.md](./DEVELOPMENT.md)           | Setup, commands, hooks, CI                                | Developers / agents   |
 | [ISSUE_MANAGEMENT.md](./ISSUE_MANAGEMENT.md) | Labels, Issue Types, epics                                | Developers / agents   |
 

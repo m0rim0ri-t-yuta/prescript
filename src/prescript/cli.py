@@ -10,7 +10,7 @@ import typer
 
 from prescript import diff as netlist_diff
 from prescript import engine, modes, report
-from prescript.draw import to_svg
+from prescript.draw import storyboard, storyboard_html, to_svg
 from prescript.ir import Design
 from prescript.loader import NetlistError, load_design
 from prescript.result import Status
@@ -93,12 +93,31 @@ def draw(
     mode: Annotated[
         str | None, typer.Option("--mode", "-m", help="Draw this operating mode's states.")
     ] = None,
+    procedure: Annotated[
+        str | None,
+        typer.Option(
+            "--procedure",
+            "-p",
+            help="Draw every state of this procedure as a storyboard into the -o directory.",
+        ),
+    ] = None,
     out: Annotated[
-        Path | None, typer.Option("--out", "-o", help="Write the SVG here instead of stdout.")
+        Path | None,
+        typer.Option(
+            "--out",
+            "-o",
+            help="Write the SVG here instead of stdout (with --procedure: a directory).",
+        ),
     ] = None,
 ) -> None:
     """Draw the cooling loop as an SVG. It renders the netlist; it does not verify it."""
+    if mode is not None and procedure is not None:
+        typer.echo("--mode and --procedure are mutually exclusive", err=True)
+        raise typer.Exit(2)
     design = _load(netlist)
+    if procedure is not None:
+        _draw_procedure(design, procedure, out)
+        return
     state = None
     if mode is not None:
         if mode not in design.modes:
@@ -112,6 +131,26 @@ def draw(
         return
     out.write_text(svg, encoding="utf-8")
     typer.echo(f"wrote {out}", err=True)
+
+
+def _draw_procedure(design: Design, name: str, out: Path | None) -> None:
+    """One SVG per state of the procedure, in order, and an index.html storyboard beside them."""
+    if name not in design.procedures:
+        known = ", ".join(design.procedures) or "none"
+        typer.echo(f"unknown procedure: {name} (procedures in this netlist: {known})", err=True)
+        raise typer.Exit(2)
+    if out is None:
+        typer.echo("--procedure writes one SVG per step: give a directory with -o", err=True)
+        raise typer.Exit(2)
+    if out.exists() and not out.is_dir():
+        typer.echo(f"--procedure needs -o to be a directory; {out} is a file", err=True)
+        raise typer.Exit(2)
+    out.mkdir(parents=True, exist_ok=True)
+    frames = storyboard(design, name)
+    for frame in frames:
+        (out / frame.file).write_text(frame.svg, encoding="utf-8")
+    (out / "index.html").write_text(storyboard_html(design, name, frames), encoding="utf-8")
+    typer.echo(f"wrote {len(frames)} SVGs and {out / 'index.html'}", err=True)
 
 
 @app.command()

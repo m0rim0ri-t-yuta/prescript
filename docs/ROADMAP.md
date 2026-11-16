@@ -34,25 +34,30 @@ Every figure below is measured on the reference design, not estimated.
 
 1. PR: refresh the racks 150 kW → 200 kW (GPU upgrade in an existing hall) — one `heat_kw` in
    `blocks.rack_gb200_nvl72.params`.
-2. CI comment goes red — `PASS 27 · FAIL 6 · WARN 0 · UNRUN 0`, and `prescript verify` exits 1.
-   Six cells fail, not one: both maintenance modes go down symmetrically, the hall is caught on
-   the heat basis as well as the flow basis, and the one isolated branch is caught twice — on
-   manifold flow and on pump head.
+2. CI comment goes red — `PASS 33 · FAIL 12 · WARN 0 · UNRUN 0`, and `prescript verify` exits 1.
+   Twelve cells fail, not one: both maintenance modes go down symmetrically, the hall is caught on
+   the heat basis as well as the flow basis, the one isolated branch is caught twice — on
+   manifold flow and on pump head — and the `stop-cdu-A` procedure fails from `s2` on, the step
+   where the duty pump stops, one step before CDU-A does.
 
-   | cell                 | finding                                                                                                                                  |
-   | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-   | `C-05@maint-cdu-A`   | 12 of 26 elements over rating: CDU-B, PMP-B-1, HDR-S-B and HDR-R-B at 2602/2300 L/min (113%); MAN-B-01…08 at 303/300 L/min (101%)         |
-   | `C-05@maint-cdu-B`   | the same, mirrored onto side A                                                                                                           |
-   | `C-05@valve-shut-01` | MAN-B-01 at 303/300 L/min (101%) — the rack whose A branch is shut takes its whole flow through B                                         |
-   | `C-06@maint-cdu-A`   | CDU-B at 1720/1500 kW (115%) — the surviving unit is short of heat capacity, not just flow                                                |
-   | `C-06@maint-cdu-B`   | CDU-A at 1720/1500 kW (115%)                                                                                                             |
-   | `C-09@valve-shut-01` | RACK-01 via PMP-B-1 at 253/250 kPa (101%) — the same rack's 303 L/min through one manifold costs side B's pump more head than it has      |
+   | cell                        | finding                                                                                                                              |
+   | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+   | `C-05@maint-cdu-A`          | 12 of 26 elements over rating: CDU-B, PMP-B-1, HDR-S-B and HDR-R-B at 2602/2300 L/min (113%); MAN-B-01…08 at 303/300 L/min (101%)    |
+   | `C-05@maint-cdu-B`          | the same, mirrored onto side A                                                                                                       |
+   | `C-05@valve-shut-01`        | MAN-B-01 at 303/300 L/min (101%) — the rack whose A branch is shut takes its whole flow through B                                    |
+   | `C-06@maint-cdu-A`          | CDU-B at 1720/1500 kW (115%) — the surviving unit is short of heat capacity, not just flow                                           |
+   | `C-06@maint-cdu-B`          | CDU-A at 1720/1500 kW (115%)                                                                                                         |
+   | `C-09@valve-shut-01`        | RACK-01 via PMP-B-1 at 253/250 kPa (101%) — the same rack's 303 L/min through one manifold costs side B's pump more head than it has |
+   | `C-05@stop-cdu-A@s2`        | 11 of 26 elements: the `maint-cdu-A` list without HDR-R-B, which still splits its return with CDU-A while CDU-A is on                |
+   | `C-05@stop-cdu-A@s3`, `@s4` | the same 12 elements as `C-05@maint-cdu-A`                                                                                           |
+   | `C-06@stop-cdu-A@s2`…`@s4`  | CDU-B at 1720/1500 kW (115%) from the step the duty pump stops                                                                       |
 
 3. Second commit: `cdu_loop` to `rating_kw: 1800`, `rating_lpm: 2800`, `dn_mm: 200` and
    `manifold_lpm: 350` (or a third CDU). The wider bore is margin, not the fix: with DN150 kept,
    the pump-head check still passes at 95%.
-4. CI comment goes green — `PASS 33 · FAIL 0 · WARN 0 · UNRUN 0`, worst 93% on flow and 96% on
-   heat in `maint-cdu-A` and 91% of the pump's head in `valve-shut-01`: sized, not oversized. The
+4. CI comment goes green — `PASS 45 · FAIL 0 · WARN 0 · UNRUN 0`, worst 93% on flow and 96% on
+   heat in `maint-cdu-A` (and in `stop-cdu-A` from `s2` on) and 91% of the pump's head in
+   `valve-shut-01`: sized, not oversized. The
    diff shows exactly what changed and why.
 
 ## Dynamic verification (epic #26)

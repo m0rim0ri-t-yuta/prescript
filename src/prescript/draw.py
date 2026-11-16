@@ -12,12 +12,14 @@ cut before layering and drawn in return lanes under the diagram.
 
 from __future__ import annotations
 
+import html
+import re
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from xml.sax.saxutils import escape
 
-from prescript.ir import SOURCE_KINDS, Design, Edge, Node
-from prescript.modes import ModeState
+from prescript.ir import SOURCE_KINDS, Design, Edge, Node, Procedure, Step
+from prescript.modes import ModeState, resolve
 
 # Geometry in user units (= px at 1:1).
 _BOX_W = 168
@@ -326,11 +328,28 @@ def _defs() -> str:
     return f"<defs>{''.join(markers)}</defs>"
 
 
+def _step_of(design: Design, mode: str) -> tuple[Procedure, int, Step] | None:
+    """The procedure step a mode was elaborated from, with its 1-based position."""
+    for procedure in design.procedures.values():
+        for index, step in enumerate(procedure.steps, start=1):
+            if step.mode == mode:
+                return procedure, index, step
+    return None
+
+
 def _header_svg(design: Design, state: ModeState | None) -> str:
     mode = state.mode if state is not None else "no mode — states as written"
+    title = design.project
+    found = _step_of(design, state.mode) if state is not None else None
+    if found is not None:
+        procedure, index, step = found
+        title = (
+            f"{design.project} — {procedure.name} {step.id} "
+            f"({index}/{len(procedure.steps)}): {step.action}"
+        )
     return "".join(
         [
-            _text(_MARGIN, 34, design.project, size=15, weight="700"),
+            _text(_MARGIN, 34, title, size=15, weight="700"),
             _text(
                 _MARGIN,
                 50,
@@ -405,4 +424,134 @@ def to_svg(design: Design, state: ModeState | None = None) -> str:
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width:.0f}" height="{height:.0f}" '
         f'viewBox="0 0 {width:.0f} {height:.0f}" font-family="{_FONT}">'
         f"{_defs()}{''.join(body)}</svg>\n"
+    )
+
+
+# ------------------------------------------------------------------ storyboard ---
+
+_UNSAFE_FILE_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
+
+
+@dataclass(frozen=True)
+class Frame:
+    """One state of a procedure, drawn: the start mode, then one frame per step."""
+
+    file: str  # file name, relative to the storyboard's directory
+    mode: str
+    caption: str
+    svg: str
+    assumption: str | None = None
+    timing: str | None = None
+
+
+def _num_s(value: float) -> str:
+    return f"{value:g} s"
+
+
+def storyboard(design: Design, name: str) -> list[Frame]:
+    """A procedure as frames: its `from` mode first, then every step, each with its states.
+
+    File names are `<procedure>-00-<from>.svg`, `<procedure>-01-<step id>.svg`, … in order."""
+    procedure = design.procedures[name]
+    width = max(2, len(str(len(procedure.steps))))
+    start = _UNSAFE_FILE_CHARS.sub("_", procedure.from_mode)
+    start_mode = design.modes[procedure.from_mode]
+    frames = [
+        Frame(
+            file=f"{name}-{0:0{width}d}-{start}.svg",
+            mode=procedure.from_mode,
+            caption=f"from — {procedure.from_mode}"
+            + (f": {start_mode.note}" if start_mode.note else ""),
+            svg=to_svg(design, resolve(design, start_mode)),
+        )
+    ]
+    for index, step in enumerate(procedure.steps, start=1):
+        timing = [f"after {_num_s(step.after_s)}"] if step.after_s is not None else []
+        if step.within_s is not None:
+            timing.append(f"within {_num_s(step.within_s)}")
+        assumption = (
+            f"assumed: {step.done_when.assume} (provenance: {step.done_when.provenance})"
+            if step.done_when is not None
+            else None
+        )
+        frames.append(
+            Frame(
+                file=f"{name}-{index:0{width}d}-{step.id}.svg",
+                mode=step.mode,
+                caption=f"{step.id} — {step.action}",
+                svg=to_svg(design, resolve(design, design.modes[step.mode])),
+                assumption=assumption,
+                timing=" · ".join(timing) or None,
+            )
+        )
+    return frames
+
+
+_PAGE_CSS = """
+body { margin: 0; padding: 24px 16px 48px; background: #ffffff; color: #334155;
+  font-family: ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; }
+main { max-width: 1200px; margin: 0 auto; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+.meta, .note { color: #64748b; font-size: 13px; margin: 4px 0; }
+ol { list-style: none; padding: 0; margin: 24px 0 0; }
+li { border-top: 1px solid #e2e8f0; padding: 16px 0 24px; }
+h2 { font-size: 16px; margin: 0 0 4px; }
+.mode { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+  color: #64748b; }
+.assumed { font-size: 13px; color: #b45309; margin: 4px 0; }
+.timing { font-size: 12px; color: #64748b; margin: 4px 0; }
+img { display: block; max-width: 100%; height: auto; margin-top: 12px;
+  border: 1px solid #e2e8f0; border-radius: 6px; }
+"""
+
+
+def storyboard_html(design: Design, name: str, frames: list[Frame]) -> str:
+    """A self-contained page (inline CSS, no scripts) showing the frames in order.
+
+    The SVGs are referenced by relative path, so the page and its frames move as one directory."""
+    procedure = design.procedures[name]
+    heading = procedure.intent or name
+    e = html.escape
+    items = []
+    for frame in frames:
+        lines = [
+            f"<h2>{e(frame.caption)}</h2>",
+            f'<div class="mode">mode {e(frame.mode)}</div>',
+        ]
+        if frame.timing:
+            lines.append(f'<p class="timing">{e(frame.timing)} (recorded; not checked)</p>')
+        if frame.assumption:
+            lines.append(f'<p class="assumed">{e(frame.assumption)}</p>')
+        lines.append(
+            f'<a href="{e(frame.file)}"><img src="{e(frame.file)}" '
+            f'alt="{e(frame.mode)}: the loop with this state\'s equipment and valve states"></a>'
+        )
+        items.append("<li>" + "".join(lines) + "</li>")
+    holds = ", ".join(procedure.holds) or "none"
+    return "\n".join(
+        [
+            "<!doctype html>",
+            '<html lang="en">',
+            "<head>",
+            '<meta charset="utf-8">',
+            '<meta name="viewport" content="width=device-width, initial-scale=1">',
+            f"<title>{e(name)} — {e(design.project)}</title>",
+            f"<style>{_PAGE_CSS}</style>",
+            "</head>",
+            "<body><main>",
+            f"<h1>{e(heading)}</h1>",
+            f'<p class="meta">procedure <b>{e(name)}</b> · {e(design.project)} · '
+            f"from {e(procedure.from_mode)} · {len(procedure.steps)} steps · "
+            f"asserted at every step: {e(holds)}</p>",
+            '<p class="note">Rendered by <code>prescript draw --procedure</code>: the topology and '
+            "states each step leaves, as the netlist writes them. Not a verification result — "
+            "run <code>prescript verify</code>. A <code>done_when</code> line is an assumption "
+            "about plant feedback; nothing here evaluates it.</p>",
+            "<ol>",
+            *items,
+            "</ol>",
+            "</main></body>",
+            "</html>",
+            "",
+        ]
     )
