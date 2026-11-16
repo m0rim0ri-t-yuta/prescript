@@ -49,7 +49,8 @@ it in CI.
   missing — the CI `scan` job is the gate), whitespace/YAML checks.
 - **pre-push**: mypy, pytest, agent-config drift check — the same gates as CI.
 - **Claude PreToolUse**: `scripts/agent_hooks/block_unsafe_git.py` denies `--no-verify`, force-push,
-  pushing to `main` and `gh pr merge`.
+  pushing to `main` and `gh pr merge` — but only in sessions whose project directory is this repo,
+  so it is a second layer under the behavioural gate (`agent-config/rules/safety.md`).
 
 ## CI (`.github/workflows/`)
 
