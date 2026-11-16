@@ -23,8 +23,10 @@ For Issue work use `./scripts/worktree-create.sh <id> <slug> [type]` instead —
 | `uv run prescript draw … -o loop.svg`                          | Loop diagram as SVG                   |
 | `uv run prescript draw … --mode maint-cdu-A`                   | …with one mode's states on it         |
 | `uv run prescript draw … --procedure stop-cdu-A -o frames/`    | One SVG per step + `index.html`       |
-| `uv run prescript sim [--seed N --runs K]`                | Dynamic testbench (`SIMULATION.md`)   |
+| `uv run prescript sim [--seed N --runs K]`                | Phase 1 testbench (`SIMULATION.md`)   |
+| `uv run prescript sim netlist.yaml -p stop-cdu-A --plot sim.svg` | Phase 2: the netlist's loop through a procedure |
 | `./scripts/demo.sh`                                       | W4 demo: green → red → green (below)  |
+| `./scripts/demo-procedure.sh`                             | Procedure → diagrams → simulation     |
 | `uv run pytest`                                           | Tests                                 |
 | `uv run ruff check . && uv run ruff format --check .`     | Lint + format                         |
 | `uv run mypy`                                             | Strict type check of `src/`           |

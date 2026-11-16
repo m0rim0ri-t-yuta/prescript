@@ -15,7 +15,7 @@ from prescript.ir import Design
 from prescript.loader import load_design
 from prescript.result import Status
 from prescript.sim import mvp, network, thermal
-from prescript.sim.netbench import Bench, Event, Profile, Scenario, ScenarioSequence
+from prescript.sim.netbench import Bench, Event, Profile, Scenario, ScenarioSequence, events_from
 
 REF = Path(__file__).resolve().parents[1] / "examples" / "gb200-1su" / "netlist.yaml"
 runner = CliRunner()
@@ -219,3 +219,47 @@ def test_cli_runs_phase_2_and_writes_trace_and_plot(tmp_path: Path) -> None:
 def test_cli_rejects_an_unknown_mode_and_phase_2_options_without_a_netlist() -> None:
     assert runner.invoke(app, ["sim", str(REF), "--mode", "nope"]).exit_code == 2
     assert runner.invoke(app, ["sim", "--mode", "normal"]).exit_code == 2
+
+
+# --- procedures on the time axis (#44 -> #45) ----------------------------------------------------
+
+
+def test_a_procedure_becomes_events_at_its_cumulative_times(ref: Design) -> None:
+    events = events_from(ref, "stop-cdu-A")
+    steps = ref.procedures["stop-cdu-A"].steps
+    assert [e.set for e in events] == [s.set for s in steps]
+    t, want = 0.0, []
+    for s in steps:
+        assert s.after_s is not None
+        t += s.after_s
+        want.append(t)
+    assert [e.at_s for e in events] == want
+    assert events[1].label == "stop-cdu-A@s2: Stop the duty pump"
+
+
+def test_events_need_a_known_procedure_and_after_s(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="unknown procedure"):
+        events_from(load_design(REF), "nope")
+    design = _variant(tmp_path, lambda s: s.replace("after_s: 30", "within_s: 30", 1))
+    with pytest.raises(ValueError, match="needs after_s"):
+        events_from(design, "stop-cdu-A")
+
+
+def test_cli_plays_a_procedure_and_names_the_step_that_breaks(tmp_path: Path) -> None:
+    ok = runner.invoke(app, ["sim", str(REF), "-p", "stop-cdu-A", "--runs", "0"])
+    assert ok.exit_code == 0, ok.output
+    assert "stop-cdu-A@s2: Stop the duty pump" in ok.output
+    low = tmp_path / "low.yaml"
+    low.write_text(
+        REF.read_text(encoding="utf-8").replace("fill_kpa: 100,", "fill_kpa: 10,"),
+        encoding="utf-8",
+    )
+    bad = runner.invoke(app, ["sim", str(low), "-p", "stop-cdu-A", "--runs", "0"])
+    assert bad.exit_code == 1, bad.output
+    assert "FAIL   P-01@run-00" in bad.output
+    assert runner.invoke(app, ["sim", str(REF), "-p", "nope"]).exit_code == 2
+    assert (
+        runner.invoke(app, ["sim", str(REF), "-p", "stop-cdu-A", "-m", "summer-peak"]).exit_code
+        == 2
+    )
+    assert runner.invoke(app, ["sim", "-p", "stop-cdu-A"]).exit_code == 2

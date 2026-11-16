@@ -54,9 +54,11 @@ Non-obvious constraints only — everything else is discoverable from the repo
   checks go as far as the steady-state sensible-heat balance `Q = V * rho * cp * dT`, a
   rating-limited flow balance, and a 1-D pressure-drop screening (Darcy-Weisbach headers, rated
   drops, Kv valves, against the pump's rated head); they do not solve the network or the pump
-  curve. Transient behaviour runs only in `prescript sim`, on the lumped model `docs/SIMULATION.md`
-  describes; anything that model cannot represent (water hammer, for one) stays `UNRUN`. Industry
-  simulators are integration targets, not things we re-implement.
+  curve. Transient behaviour runs only in `prescript sim`, on the models `docs/SIMULATION.md`
+  describes: Phase 2 solves the netlist's own network quasi-steadily (pump curves, check valves)
+  with a lumped heat model. Anything those models cannot represent stays out of a verdict: water
+  hammer gets only a one-sided Joukowsky screen (PASS when the bound clears, WARN otherwise, never
+  FAIL). Industry simulators are integration targets, not things we re-implement.
 
 ## Key Paths
 
@@ -66,8 +68,8 @@ Non-obvious constraints only — everything else is discoverable from the repo
 - `src/prescript/checks/` — one module per assertion routine; registry in `checks/__init__.py`;
   the flow/heat accumulation every sizing check shares lives in `checks/_util.py`
 - `src/prescript/draw.py` — IR → loop diagram (SVG); it renders the netlist and verifies nothing
-- `src/prescript/sim/` — dynamic verification: plant model, PID, UVM-style testbench parts
-  (`docs/SIMULATION.md`)
+- `src/prescript/sim/` — dynamic verification (`docs/SIMULATION.md`): Phase 1 (`plant`, `uvm`,
+  `poc`) and Phase 2, the plant built from a netlist (`network`, `thermal`, `netbench`, `mvp`)
 - `src/prescript/cli.py` — `prescript verify` / `prescript elaborate` / `prescript draw` /
   `prescript sim`
 - `examples/gb200-1su/netlist.yaml` — the reference design

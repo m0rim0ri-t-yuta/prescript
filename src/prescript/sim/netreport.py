@@ -32,7 +32,7 @@ def _timeline(design: Design, net: Network, tr: Trace) -> list[str]:
     cdus = [c.id for c in design.nodes_of("cdu")]
     loads = [n.id for n in design.nodes.values() if n.kind in LOAD_KINDS]
     pumps = [p.id for p in design.nodes_of("pump")]
-    head = "t [s]  state" + " " * 22 + "".join(f"{c + ' L/min':>14}" for c in cdus)
+    head = "t [s]  state" + " " * 36 + "".join(f"{c + ' L/min':>14}" for c in cdus)
     out = [head + "  least NPSH margin      hottest load"]
     for k0, k1 in segments(tr):
         flows = "".join(f"{tr.series(c)[k1 - 1]:14.0f}" for c in cdus)
@@ -50,7 +50,7 @@ def _timeline(design: Design, net: Network, tr: Trace) -> list[str]:
         temps = [(netbench.load_temp(net, tr, k, n)[0], n) for k in range(k0, k1) for n in loads]
         hot = max(temps) if temps else (math.nan, "-")
         out.append(
-            f"{tr.t[k0]:5.0f}  {tr.label[k0][:26]:26}{flows}  {npsh:22} {hot[1]} {hot[0]:.1f} °C"
+            f"{tr.t[k0]:5.0f}  {tr.label[k0][:40]:40}{flows}  {npsh:22} {hot[1]} {hot[0]:.1f} °C"
         )
     return out
 
@@ -67,7 +67,11 @@ def to_text(
     out.append(f"method: {netbench.METHOD}")
     nominal = runs[0] if runs else None
     if nominal is not None and nominal.trace is not None and net is not None:
-        out += ["", f"timeline of {nominal.scenario.run} (values at the end of each state):"]
+        out += [
+            "",
+            f"timeline of {nominal.scenario.run} (flows at the end of each state; NPSH margin "
+            "and load temperature are the worst within it):",
+        ]
         out += _timeline(design, net, nominal.trace)
     out += ["", "run     " + "".join(f"{i:7}" for i in _IDS) + "scenario"]
     for run in runs:
@@ -169,8 +173,8 @@ def _panel(
         out.append(
             f'<line x1="{_LEFT}" x2="{_LEFT + width}" y1="{y(limit[0]):.1f}" '
             f'y2="{y(limit[0]):.1f}" stroke="#cf222e" stroke-dasharray="6 4"/>'
-            f'<text x="{_LEFT + width + 6}" y="{y(limit[0]) + 4:.1f}" font-size="11" '
-            f'fill="#cf222e">{escape(limit[1])}</text>'
+            f'<text x="{_LEFT + width - 4}" y="{y(limit[0]) - 4:.1f}" font-size="11" '
+            f'text-anchor="end" fill="#cf222e">{escape(limit[1])}</text>'
         )
     for i, (name, ys) in enumerate(series):
         colour = _SERIES[i % len(_SERIES)]
@@ -237,12 +241,14 @@ def to_svg(design: Design, net: Network, run: Run) -> str:
     for k0, _ in segments(tr)[1:]:
         xpos = _LEFT + (t[k0] - t0) / (t1 - t0) * width
         bottom = _TOP + 3 * _PANEL + 2 * _GAP
+        state = tr.label[k0].split(":")[0]
+        short = state.split("@", 1)[1] if "@" in state else state
         parts.append(
-            f'<line x1="{xpos:.1f}" x2="{xpos:.1f}" y1="{_TOP - 4}" y2="{bottom}" '
-            f'stroke="{_MUTED}" stroke-dasharray="2 3"/>'
-            f'<text x="{xpos + 3:.1f}" y="{bottom + 14}" font-size="11" fill="{_MUTED}" '
-            f'transform="rotate(20 {xpos + 3:.1f} {bottom + 14})">'
-            f"{escape(tr.label[k0].split(':')[0])}</text>"
+            f'<line x1="{xpos:.1f}" x2="{xpos:.1f}" y1="{_TOP}" y2="{bottom}" '
+            f'stroke="{_MUTED}" stroke-dasharray="2 3"><title>{escape(tr.label[k0])}</title>'
+            f"</line>"
+            f'<text x="{xpos + 3:.1f}" y="{_TOP + 12}" font-size="11" fill="{_MUTED}">'
+            f"{escape(short)}</text>"
         )
     parts.append(
         f'<text x="{_LEFT}" y="{total - 4}" font-size="10" fill="{_MUTED}">time [s] · '

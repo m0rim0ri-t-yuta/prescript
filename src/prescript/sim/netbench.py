@@ -54,6 +54,25 @@ class Event:
     label: str
 
 
+def events_from(design: Design, procedure: str) -> tuple[Event, ...]:
+    """A procedure's steps on the time axis: each `set:` lands `after_s` after the step before.
+
+    This is where the ASM chart meets the simulator. The static checks evaluate each step as a
+    mode; here the same steps are applied, in order, to the running plant. Raises ValueError for
+    an unknown procedure or a step without `after_s` (a time the simulator cannot invent).
+    """
+    if procedure not in design.procedures:
+        known = ", ".join(design.procedures) or "none"
+        raise ValueError(f"unknown procedure: {procedure} (procedures in this netlist: {known})")
+    events, t = [], 0.0
+    for step in design.procedures[procedure].steps:
+        if step.after_s is None:
+            raise ValueError(f"{step.mode}: the simulator needs after_s on every step")
+        t += step.after_s
+        events.append(Event(t, dict(step.set), f"{step.mode}: {step.action}"))
+    return tuple(events)
+
+
 @dataclass(frozen=True)
 class Profile:
     """Piecewise-linear in time; flat before the first point and after the last."""
