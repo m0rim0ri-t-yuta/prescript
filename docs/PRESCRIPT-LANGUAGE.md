@@ -43,7 +43,10 @@ Every flow calculation uses `cp_kj_kgk × density_kg_l` as the `rho · cp` of `Q
 
 Attribute names carry units: `rating_kw`, `rating_lpm`, `rating_kpa`, `approach_k`, `heat_kw`,
 `delta_t_k`, `max_inlet_c`, `return_min_c`, `return_max_c`, `dn_mm`, `length_m`, `roughness_mm`,
-`dp_kpa`, `dp_lpm`, `volume_l`. An undecided value is `null`.
+`dp_kpa`, `dp_lpm`, `volume_l`. An undecided value is `null`. The loader takes these at their
+word: a unit-carrying attribute holds a number or `null`, and a string there is a netlist
+error, not data — every check coerces these, so a typo caught at load time is a reported
+error instead of a crash halfway through a run.
 
 Loads (`rack`, `rdhx`): `class` (e.g. `it_liquid` | `it_air`), `heat_kw`, `delta_t_k`,
 `max_inlet_c`, `dual_fed: true`.

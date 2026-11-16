@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from prescript.ir import Design
-from prescript.loader import NetlistError, parse_design
+from prescript.loader import NetlistError, load_design, parse_design
 
 
 def test_blocks_expand_into_eight_racks(design: Design) -> None:
@@ -138,4 +139,60 @@ def test_a_spec_row_needs_an_id(doc: dict[str, Any]) -> None:
 def test_duplicate_spec_rows_are_rejected(doc: dict[str, Any]) -> None:
     doc["spec"]["02_Loads"]["rows"].append({"id": "RACK-01", "heat_kw": 150})
     with pytest.raises(NetlistError, match="duplicate row id"):
+        parse_design(doc)
+
+
+# --------------------------------------------------- a malformed netlist, not a traceback ---
+# Every way a netlist can be malformed leaves the loader as a NetlistError (#49, #54). Anything
+# else reaches the user as a traceback and, from the CLI, as the exit code that means FAIL.
+
+
+def test_a_file_that_is_not_yaml_is_a_netlist_error(tmp_path: Path) -> None:
+    path = tmp_path / "broken.yaml"
+    path.write_text("prescript: 0.2\nunits: {\n", encoding="utf-8")
+    with pytest.raises(NetlistError, match="not valid YAML") as caught:
+        load_design(path)
+    # The reason and the place, on one line: a comment is not a log.
+    assert "\n" not in str(caught.value)
+    assert "line 3" in str(caught.value)
+
+
+def test_a_unit_carrying_attribute_rejects_a_string(doc: dict[str, Any]) -> None:
+    doc["blocks"]["cdu_loop"]["params"]["rating_lpm"] = "oops"
+    with pytest.raises(NetlistError, match="must be a number or null, not 'oops'"):
+        parse_design(doc)
+
+
+def test_a_unit_carrying_attribute_rejects_a_bool(doc: dict[str, Any]) -> None:
+    """`true` is an int in Python, and a rating of 1 is not what the netlist said."""
+    doc["nodes"].append({"id": "CDU-X", "kind": "cdu", "provenance": "assumed", "rating_lpm": True})
+    with pytest.raises(NetlistError, match="rating_lpm must be a number or null, not True"):
+        parse_design(doc)
+
+
+def test_a_unit_carrying_attribute_rejects_a_non_finite_number(doc: dict[str, Any]) -> None:
+    doc["nodes"].append(
+        {"id": "CDU-X", "kind": "cdu", "provenance": "assumed", "rating_lpm": float("inf")}
+    )
+    with pytest.raises(NetlistError, match="must be a finite number"):
+        parse_design(doc)
+
+
+def test_a_null_rating_still_loads(doc: dict[str, Any]) -> None:
+    """An undecided value is `null`, and the check that touches it returns UNRUN — not a load
+    error (verification-semantics.md). Rejecting `null` here would break the product's core."""
+    doc["nodes"].append({"id": "CDU-X", "kind": "cdu", "provenance": "assumed", "rating_lpm": None})
+    assert parse_design(doc).nodes["CDU-X"].get("rating_lpm") is None
+
+
+def test_an_attribute_without_a_unit_keeps_its_string(design: Design) -> None:
+    assert design.nodes["RACK-01"].get("class") == "it_liquid"
+    assert design.nodes["CDU-A"].get("side") == "A"
+    assert design.nodes["PMP-A-2"].get("standby_of") == "PMP-A-1"
+
+
+def test_a_bad_share_on_an_edge_is_a_netlist_error(doc: dict[str, Any]) -> None:
+    """`Edge` is built by pydantic, whose ValidationError used to escape the loader."""
+    doc["edges"].append({"from": "HDR-S-A", "to": "RDHX-01", "share": "oops"})
+    with pytest.raises(NetlistError, match="edge HDR-S-A->RDHX-01"):
         parse_design(doc)
