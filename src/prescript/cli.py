@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
 
@@ -10,6 +9,7 @@ import typer
 
 from prescript import diff as netlist_diff
 from prescript import engine, modes, report
+from prescript.core.report import Format, exit_code
 from prescript.draw import storyboard, storyboard_html, to_svg
 from prescript.ir import Design
 from prescript.loader import NetlistError, load_design
@@ -22,12 +22,6 @@ from prescript.sim.uvm import Constraints, StepSequence
 app = typer.Typer(
     no_args_is_help=True, add_completion=False, help="Spec-as-code for liquid cooling."
 )
-
-
-class Format(StrEnum):
-    text = "text"
-    md = "md"
-    json = "json"
 
 
 NetlistArg = Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="netlist.yaml")]
@@ -57,9 +51,7 @@ def verify(
         typer.echo(report.to_json(results))
     else:
         typer.echo(report.to_text(design, results, verbose=verbose))
-    failed = any(r.status is Status.FAIL for r in results)
-    unrun = any(r.status is Status.UNRUN for r in results)
-    raise typer.Exit(1 if failed or (strict and unrun) else 0)
+    raise typer.Exit(exit_code(results, strict=strict))
 
 
 @app.command()

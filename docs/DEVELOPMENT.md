@@ -34,6 +34,11 @@ For Issue work use `./scripts/worktree-create.sh <id> <slug> [type]` instead —
 | `uv run python scripts/sync_agent_config.py [--check]`    | Regenerate / verify Claude adapters   |
 | `./scripts/sync_labels.sh`                                | Push `.github/labels.yml` to GitHub   |
 
+`prescript verify` exit codes: **0** every assertion passed, **1** at least one `FAIL` (or, with
+`--strict`, an `UNRUN`), **2** the netlist could not be read — a malformed file, a bad grammar
+version, a missing `provenance`, a rating that is not a number. CI can tell a red design from an
+unreadable one by the code alone; a netlist error prints one line and no report.
+
 ## Demo
 
 `./scripts/demo.sh` runs the W4 walkthrough from `ROADMAP.md` on copies of the reference design:
