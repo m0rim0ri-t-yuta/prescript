@@ -1,4 +1,4 @@
-"""`prescript` command line: `verify`, `elaborate`, `draw` and `sim`."""
+"""`prescript` command line: `verify`, `elaborate`, `diff`, `draw` and `sim`."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Annotated
 
 import typer
 
+from prescript import diff as netlist_diff
 from prescript import engine, modes, report
 from prescript.draw import to_svg
 from prescript.ir import Design
@@ -65,6 +66,25 @@ def elaborate(netlist: NetlistArg) -> None:
     """Print the elaborated IR as JSON (blocks expanded, every id unique)."""
     design = _load(netlist)
     typer.echo(design.model_dump_json(indent=2))
+
+
+@app.command()
+def diff(
+    before: NetlistArg,
+    after: NetlistArg,
+    fmt: Annotated[Format, typer.Option("--format", "-f")] = Format.text,
+) -> None:
+    """List what changed between two netlists, after elaboration.
+
+    It compares; it does not verify."""
+    was, now = _load(before), _load(after)
+    changes = netlist_diff.compare(was, now)
+    if fmt is Format.md:
+        typer.echo(netlist_diff.to_markdown(was, now, changes))
+    elif fmt is Format.json:
+        typer.echo(netlist_diff.to_json(changes))
+    else:
+        typer.echo(netlist_diff.to_text(was, now, changes))
 
 
 @app.command()
