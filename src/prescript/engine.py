@@ -1,19 +1,17 @@
-"""Run every assertion in every mode it names and collect results."""
+"""Run every cooling assertion in every mode it names and collect results.
+
+The loop is the core's (`prescript.core.engine`); the cooling domain supplies its routines, the
+circulation of each mode (`prescript.modes.resolve`) and `coverage`, which runs over the other
+results.
+"""
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 from prescript.checks import PLANNED, REGISTRY
-from prescript.ir import META_MODE, STATIC_MODE, Assertion, Design
+from prescript.core import engine as core
+from prescript.ir import META_MODE, Assertion, Design
 from prescript.modes import ModeState, resolve
 from prescript.result import Result, Status, unrun
-
-
-def _apply_severity(a: Assertion, r: Result) -> Result:
-    if a.severity == "warn" and r.status is Status.FAIL:
-        return replace(r, status=Status.WARN)
-    return r
 
 
 def _coverage(a: Assertion, results: list[Result]) -> Result:
@@ -30,28 +28,7 @@ def _coverage(a: Assertion, results: list[Result]) -> Result:
 
 
 def run(design: Design) -> list[Result]:
-    states: dict[str, ModeState] = {}
-    results: list[Result] = []
-    meta: list[Assertion] = []
+    def state(mode: str) -> ModeState:
+        return resolve(design, design.modes[mode])
 
-    for a in design.assertions:
-        if a.check == "coverage":
-            meta.append(a)
-            continue
-        routine = REGISTRY.get(a.check)
-        for mode in a.modes:
-            if routine is None:
-                why = "not implemented" if a.check in PLANNED else f"unknown check '{a.check}'"
-                results.append(unrun(a.id, mode, why))
-                continue
-            if mode == STATIC_MODE:
-                state = None
-            else:
-                if mode not in states:
-                    states[mode] = resolve(design, design.modes[mode])
-                state = states[mode]
-            results.append(_apply_severity(a, routine(design, state, a)))
-
-    for a in meta:
-        results.append(_apply_severity(a, _coverage(a, results)))
-    return results
+    return core.run(design, REGISTRY, state, planned=PLANNED, post={"coverage": _coverage})

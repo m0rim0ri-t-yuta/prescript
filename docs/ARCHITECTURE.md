@@ -56,12 +56,33 @@ reports facts — whether a change breaks an assertion is `verify`'s answer.
 | `prescript/modes.py`   | Resolve overrides → equipment/valve states; circulation and dead legs   |
 | `prescript/result.py`  | Closed status set and the invariants a `Result` enforces at construction |
 | `prescript/checks/`    | One routine per module; `REGISTRY` + `PLANNED`; `_util.accumulate`      |
-| `prescript/engine.py`  | Assertion × mode loop, severity, coverage                               |
-| `prescript/report.py`  | Matrix + findings (+ `done_when` assumptions) as text, Markdown, JSON   |
+| `prescript/core/`     | Domain-neutral core (§3.1): `spec` protocols, `engine.run`, `report`    |
+| `prescript/engine.py`  | Cooling on the core: `REGISTRY`, `modes.resolve` as the mode state, coverage |
+| `prescript/report.py`  | Cooling on the core: adds the `done_when` assumptions to the core's output |
 | `prescript/diff.py`    | Two elaborated designs → a change list; text, Markdown, JSON            |
 | `prescript/draw.py`    | IR → loop diagram (SVG): columns from the CDU, return lanes; procedure storyboard |
 | `prescript/sim/`       | Plant model, PID, UVM-style testbench and its report (`SIMULATION.md`)   |
 | `prescript/cli.py`     | `verify`, `elaborate`, `diff`, `draw`, `sim`                            |
+
+### 3.1 The core and its domains
+
+`prescript.core` is what a domain library imports instead of copying. It reads a domain's design
+only through `core.spec`: `project`, `modes` by name, and `assertions` with `id`, `check`,
+`modes` and `severity`. The domain supplies its routines by name, a function that builds one
+mode's state, and optional post-checks such as `coverage`:
+
+```python
+core.engine.run(design, registry, state, planned=..., post=...)  # -> list[Result]
+```
+
+The rules that make a result trustworthy are the core's, so every domain gets them: an unbuilt or
+unknown check is `UNRUN`; a mode whose `state` raises `core.engine.Unsolvable` is `UNRUN` in every
+assertion with that reason while the other modes still run; `static` and `meta` get no state; a
+`warn` assertion turns `FAIL` into `WARN`. `core.report` renders the matrix, summary and findings
+with the domain's title and extra lines, and `core.report.exit_code` is `verify`'s exit status.
+`prescript.result` belongs to the core too and stays at the top level, where domains import it.
+
+The cooling domain sits on the core like any other: `engine.py` and `report.py` are its adapters.
 
 ## 4. Design decisions
 
