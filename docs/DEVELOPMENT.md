@@ -24,7 +24,7 @@ For Issue work use `./scripts/worktree-create.sh <id> <slug> [type]` instead —
 | `uv run prescript draw … --mode maint-cdu-A`                   | …with one mode's states on it         |
 | `uv run prescript sim [--seed N --runs K]`                | Dynamic testbench (`SIMULATION.md`)   |
 | `./scripts/demo.sh`                                       | W4 demo: green → red → green (below)  |
-| `./scripts/ci_netlist_diff.sh <base-sha> diff.md`         | Reproduce CI's diff comment locally  |
+| `./scripts/ci_netlist_diff.sh <base-sha> diff.md`         | Reproduce CI's diff comment locally   |
 | `uv run pytest`                                           | Tests                                 |
 | `uv run ruff check . && uv run ruff format --check .`     | Lint + format                         |
 | `uv run mypy`                                             | Strict type check of `src/`           |
