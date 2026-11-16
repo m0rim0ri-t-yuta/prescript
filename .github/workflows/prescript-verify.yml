@@ -1,6 +1,7 @@
 name: prescript-verify
 
-# Dogfoods the product: any PR that changes a design gets the verification report as a comment.
+# Dogfoods the product: any PR that changes a design gets what changed and the verification report
+# as one comment — the change list from `prescript diff`, then the verdict from `prescript verify`.
 on:
   pull_request:
     paths:
@@ -23,6 +24,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          # The diff step reads the base commit's netlist with `git show`; the default shallow
+          # fetch has only the merge commit.
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --locked
       - name: verify
@@ -31,12 +35,21 @@ jobs:
           set +e
           uv run prescript verify -f md examples/gb200-1su/netlist.yaml > report.md
           echo "exit=$?" >> "$GITHUB_OUTPUT"
+      - name: diff against the base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        # Writes a section per netlist this PR modifies, and an empty file when there is none.
+        run: ./scripts/ci_netlist_diff.sh "$BASE_SHA" diff.md
+      - name: compose the comment
+        # What changed first, the verdict second. One comment, so a diff that is no longer there
+        # cannot linger in a second one.
+        run: cat diff.md report.md > comment.md
       - name: comment
         if: github.event.pull_request.head.repo.full_name == github.repository
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: prescript-verify
-          path: report.md
+          path: comment.md
       - name: fail on FAIL
         if: steps.verify.outputs.exit != '0'
         run: exit 1
