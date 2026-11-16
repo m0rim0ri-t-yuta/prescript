@@ -25,9 +25,6 @@ run() {
   shift 2
   out="$(cd "$root" && uv run --quiet prescript "$@" 2>&1)" || code=$?
   summary="$(grep -E '^PASS ' <<<"$out" | head -1 || true)"
-  if [[ -z "$summary" ]] && grep -q '^wrote ' <<<"$out"; then
-    summary="wrote $(grep -c '^wrote ' <<<"$out") files"
-  fi
   printf '%-30s %-42s exit %d\n' "$label" "${summary:-(no summary line)}" "$code"
   if [[ "$code" != "$want" ]]; then
     echo "demo-procedure.sh: $label expected exit $want, got $code." >&2
@@ -53,7 +50,7 @@ echo
 run "1 verify (static, per step)" 0 verify "$work/01-reference.yaml"
 run "2 draw (one frame per state)" 0 draw "$work/01-reference.yaml" \
   --procedure "$procedure" -o "$work/storyboard"
-echo "    storyboard: $work/storyboard/index.html"
+echo "    $(find "$work/storyboard" -name '*.svg' | wc -l | tr -d ' ') frames: $work/storyboard/index.html"
 run "3 sim (steps on a time axis)" 0 sim "$work/01-reference.yaml" -p "$procedure" --runs 3 \
   --plot "$work/sim-reference.svg"
 awk '/^timeline/,/^$/' <<<"$LAST" | sed 's/^/    /'
