@@ -4,9 +4,13 @@ name: prescript-verify
 # as one comment — the change list from `prescript diff`, then the verdict from `prescript verify`.
 on:
   pull_request:
+    # The last two entries are this job's own machinery: a workflow that cannot run on the PR that
+    # changes it has to be tested by hand on a throwaway PR, which is how it drifts.
     paths:
       - 'examples/**'
       - 'src/prescript/**'
+      - '.github/workflows/prescript-verify.yml'
+      - 'scripts/ci_netlist_diff.sh'
 
 permissions:
   contents: read
