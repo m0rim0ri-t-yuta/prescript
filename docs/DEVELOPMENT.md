@@ -58,7 +58,8 @@ it in CI.
 ## CI (`.github/workflows/`)
 
 - `ci.yml` — lint, format, mypy, pytest, agent-config drift, `prescript verify` on the reference design.
-- `prescript-verify.yml` — on PRs touching `examples/**` or `src/prescript/**`: posts one
+- `prescript-verify.yml` — on PRs touching `examples/**`, `src/prescript/**`, this workflow or
+  `scripts/ci_netlist_diff.sh` (the last two so a change to the job runs the job): posts one
   sticky comment, the change list above the verdict. `scripts/ci_netlist_diff.sh` runs
   `prescript diff -f md` between the base commit's netlist and this one for every netlist the
   PR *modifies* (added, deleted and renamed ones are skipped — there is nothing to compare),
