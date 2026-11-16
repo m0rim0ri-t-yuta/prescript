@@ -2,8 +2,10 @@
 
 ## Git
 
-- Force-push (incl. `+refspec`), deleting `main`, `--no-verify`, `git commit -n` and `gh pr merge`
-  are hard gates you keep yourself: stop and ask the owner, every time. The rule is the gate.
+- Force-push (incl. `+refspec`), deleting `main`, `--no-verify` and `git commit -n` are hard gates
+  you keep yourself: stop and ask the owner, every time. `gh pr merge` is the owner's as well — run
+  it only on their explicit instruction, for the pull requests they name, in that session
+  (`review-governance.md`). The rule is the gate.
 - `scripts/agent_hooks/block_unsafe_git.py` (Claude PreToolUse hook) and the `permissions.deny`
   list in `.claude/settings.json` are a second layer only, and they bind **only when this repo is
   the session's project directory**: the hook is registered as
