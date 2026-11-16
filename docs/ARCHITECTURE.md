@@ -33,7 +33,7 @@ netlist.yaml ──▶ loader ──▶ ir.Design ──▶ modes.resolve(mode) 
 Each stage consumes only the previous stage's output. Checks never read YAML; the report never
 re-runs checks.
 
-`draw` is the second consumer of the IR, beside `checks`:
+`checks` is not the only consumer of the IR. `draw` reads one design:
 
 ```
 ir.Design (+ modes.resolve(mode)) ──▶ draw.to_svg ──▶ loop diagram (SVG)
@@ -41,6 +41,10 @@ ir.Design (+ modes.resolve(mode)) ──▶ draw.to_svg ──▶ loop diagram (
 
 It renders what the netlist says — topology, the states of one mode, the ratings as written — and
 reports no pass or fail. An undecided rating is drawn as `?`, never as a number.
+
+`diff` reads two: two elaborated designs in, the list of differences out. It compares after
+elaboration, which is why one edited block parameter reads as the eight racks it moved, and it
+reports facts — whether a change breaks an assertion is `verify`'s answer.
 
 ## 3. Modules
 
@@ -53,9 +57,10 @@ reports no pass or fail. An undecided rating is drawn as `?`, never as a number.
 | `prescript/checks/`    | One routine per module; `REGISTRY` + `PLANNED`; `_util.accumulate`      |
 | `prescript/engine.py`  | Assertion × mode loop, severity, coverage                               |
 | `prescript/report.py`  | Matrix + findings as text, Markdown, JSON                               |
+| `prescript/diff.py`    | Two elaborated designs → a change list; text, Markdown, JSON            |
 | `prescript/draw.py`    | IR → loop diagram (SVG): columns from the CDU, return lanes             |
 | `prescript/sim/`       | Plant model, PID, UVM-style testbench and its report (`SIMULATION.md`)   |
-| `prescript/cli.py`     | `verify`, `elaborate`, `draw`, `sim`                                    |
+| `prescript/cli.py`     | `verify`, `elaborate`, `diff`, `draw`, `sim`                            |
 
 ## 4. Design decisions
 

@@ -108,6 +108,14 @@ def test_fluid_viscosity_is_read(design: Design) -> None:
     assert design.fluids["pg25"].viscosity_mpas == 2.0
 
 
+def test_block_edges_carry_the_block_they_came_from(design: Design) -> None:
+    """`Edge.origin` is what lets a diff group six edges as one new rack (#38)."""
+    branch = next(e for e in design.edges if e.src == "HDR-S-A" and e.dst == "MAN-A-01")
+    assert branch.origin is not None and branch.origin.startswith("rack_gb200_nvl72[")
+    hand_written = next(e for e in design.edges if e.src == "HDR-S-A" and e.dst == "RDHX-01")
+    assert hand_written.origin is None
+
+
 def test_spec_table_is_read_into_the_ir(design: Design) -> None:
     table = design.spec["02_Loads"]
     assert len(table.rows) == 9
